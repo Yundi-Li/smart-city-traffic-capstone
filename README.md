@@ -153,7 +153,7 @@ Folder names follow the deliverable wording in the capstone instructions (`capst
 | part3_machine_learning/responsible_ai | capstone_part3/responsible_ai.md |
 | part3_machine_learning/report | capstone_part3/capstone_report.md |
 | part3_machine_learning/README | capstone_part3/README.md |
-| final_capstone_report | final_capstone_report.md (PDF if generated) |
+| final_capstone_report | final_capstone_report.md |
 
 ## Proxy Accident-Risk Label
 
