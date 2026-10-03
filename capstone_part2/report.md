@@ -8,7 +8,7 @@ The pipeline processes 48,204 raw rows of hourly I-94 traffic data (October 2012
 2. **Weather standardisation:** 1,730 `weather_description` entries normalised to consistent casing; 0 `weather_main` entries needed adjustment.
 3. **Exact duplicate removal:** 17 rows removed (identical across all columns).
 4. **Timestamp aggregation:** 5,430 timestamps appear more than once, accounting for 7,612 extra rows. These arise from multiple weather condition readings logged for the same hour while `traffic_volume` is identical within each hour. Rather than simply dropping duplicates, aggregation keeps the most severe weather reading per hour, preserving information. This reduces the dataset from 48,187 to 40,575 unique hourly records.
-5. **Missing-value check:** No missing values were found. The holiday column value "No Holiday" on 40,522 rows is expected (only 53 rows carry a named holiday).
+5. **Missing-value check:** The raw holiday column contains nulls for all non-holiday hours (48,143 rows); these represent non-holiday hours and were standardised to "No Holiday". No unexpected missing values were found in any other column.
 6. **Outlier detection and imputation:** 10 rows with 0 Kelvin temperature and 1 row with rain_1h > 9,000 mm (physically implausible) detected. All imputed using per-month median values rather than a global median, preserving seasonal patterns.
 
 Final cleaned dataset: **40,575 rows × 10 columns**, saved to `cleaned_traffic.csv`.

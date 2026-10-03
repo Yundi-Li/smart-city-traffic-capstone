@@ -83,7 +83,7 @@ Format: `timestamp | level | module | message`
 |-------|---------|---------|
 | `DEBUG` | Fine-grained internal values for troubleshooting. Only visible with `--debug`. | Quartile thresholds: Q1=1248.5, Q2=3427.0, Q3=4952.0 |
 | `INFO` | Normal pipeline milestones — data loaded, step completed, file saved. | Loaded 48,204 rows and 9 columns |
-| `WARNING` | Unexpected but recoverable events — rows dropped, values imputed, outliers handled. | Removing 7,612 rows with duplicate date_time values |
+| `WARNING` | Unexpected but recoverable events — rows dropped, values imputed, outliers handled. | Aggregated 5,430 repeated hourly timestamps (7,612 extra rows) containing multiple weather observations |
 | `ERROR` | A failure that prevents the pipeline from continuing. Includes traceback via `exc_info=True`. | Dataset not found at path |
 
 ### Configuration

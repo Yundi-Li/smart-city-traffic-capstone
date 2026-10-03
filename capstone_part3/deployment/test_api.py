@@ -62,6 +62,20 @@ SAMPLE_REQUESTS = [
         },
     },
     {
+        "label": "Holiday midday, clear",
+        "payload": {
+            "hour": 12,
+            "day_of_week": 0,
+            "is_weekend": 0,
+            "temp": 270.0,
+            "rain_1h": 0.0,
+            "snow_1h": 0.0,
+            "clouds_all": 5,
+            "weather_main": "Clear",
+            "is_holiday": 1,
+        },
+    },
+    {
         "label": "Weekday rush hour, fog",
         "payload": {
             "hour": 17,

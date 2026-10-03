@@ -44,6 +44,7 @@ class PredictRequest(BaseModel):
     snow_1h: float = Field(..., ge=0.0)
     clouds_all: int = Field(..., ge=0, le=100)
     weather_main: str
+    is_holiday: int = Field(default=0, ge=0, le=1)
 
 
 class PredictResponse(BaseModel):
@@ -142,7 +143,7 @@ def _build_feature_row(request: PredictRequest) -> np.ndarray:
         "dow_sin": np.sin(2 * np.pi * dow / 7),
         "dow_cos": np.cos(2 * np.pi * dow / 7),
         "is_weekend": request.is_weekend,
-        "is_holiday": 0,
+        "is_holiday": request.is_holiday,
         "is_low_visibility": 1 if request.weather_main in ("Fog", "Mist", "Haze", "Smoke") else 0,
         "weather_severity": {"Clear": 0, "Clouds": 1, "Mist": 2, "Haze": 2, "Drizzle": 2,
                              "Rain": 3, "Fog": 3, "Snow": 4, "Thunderstorm": 4,

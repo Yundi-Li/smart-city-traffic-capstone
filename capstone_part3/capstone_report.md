@@ -2,7 +2,7 @@
 
 ## 1. Supervised Machine Learning
 
-Two supervised learning tasks were developed using a common feature set: cyclical hour/day encodings, is_weekend, is_holiday, is_low_visibility, temp, rain_1h, snow_1h, clouds_all, and one-hot encoded weather_main. Data source: Part 2 cleaned dataset (40,575 rows). A **chronological split** was used (train: 2012-2016, test: 2017) rather than random splitting, because random splits leak neighbouring hours and inflate scores by allowing the model to memorise temporal autocorrelation.
+Two supervised learning tasks were developed using a common feature set: cyclical hour/day encodings, is_weekend, is_holiday, is_low_visibility, temp, rain_1h, snow_1h, clouds_all, and one-hot encoded weather_main. Data source: Part 2 ML-ready featured dataset (40,575 rows), produced from the cleaned hourly dataset. A **chronological split** was used (train: 2012-2016, test: 2017) rather than random splitting, because random splits leak neighbouring hours and inflate scores by allowing the model to memorise temporal autocorrelation.
 
 ### Classification — Proxy Accident-Risk Prediction
 
