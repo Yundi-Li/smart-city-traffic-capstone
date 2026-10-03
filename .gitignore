@@ -58,9 +58,13 @@ cover/
 
 # Django stuff:
 *.log
+!capstone_part2/pipeline.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
+
+# MLflow
+capstone_part3/mlflow_logs/
 
 # Flask stuff:
 instance/
