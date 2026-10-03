@@ -85,15 +85,16 @@ def prepare_features(df: pd.DataFrame) -> pd.DataFrame:
         labels=["Low", "Medium", "High", "Severe"],
     )
 
-    # High-risk label
-    is_high_congestion = df["congestion_category"].isin(["High", "Severe"])
-    is_severe_weather = df["weather_main"].isin(SEVERE_WEATHER)
-    is_low_visibility = (df["clouds_all"] > 80) & df["weather_main"].isin(
-        LOW_VISIBILITY_WEATHER
-    )
-    df["high_risk"] = (
-        (is_high_congestion & is_severe_weather) | is_low_visibility
+    # is_low_visibility feature: clouds_all > 80 and weather is fog/mist/haze/smoke
+    df["is_low_visibility"] = (
+        (df["clouds_all"] > 80) & df["weather_main"].isin(LOW_VISIBILITY_WEATHER)
     ).astype(int)
+
+    # Proxy accident-risk label (per capstone instructions):
+    # high_risk = high/severe congestion AND (severe weather OR low visibility)
+    is_high_congestion = df["congestion_category"].isin(["High", "Severe"])
+    risky_weather = df["weather_main"].isin(SEVERE_WEATHER) | (df["is_low_visibility"] == 1)
+    df["high_risk"] = (is_high_congestion & risky_weather).astype(int)
 
     # One-hot encode weather_main
     weather_dummies = pd.get_dummies(df["weather_main"], prefix="weather")
@@ -107,7 +108,7 @@ def get_feature_columns(df: pd.DataFrame) -> list[str]:
     """Return the list of feature column names."""
     base_features = [
         "hour_sin", "hour_cos", "day_sin", "day_cos",
-        "is_weekend", "is_holiday",
+        "is_weekend", "is_holiday", "is_low_visibility",
         "temp", "rain_1h", "snow_1h", "clouds_all",
     ]
     weather_cols = [c for c in df.columns if c.startswith("weather_") and c not in ("weather_main", "weather_description")]
