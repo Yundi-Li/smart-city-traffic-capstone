@@ -189,7 +189,7 @@ def run_monitoring() -> None:
     """Execute the full monitoring pipeline."""
     # Paths relative to project root
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    data_path = os.path.join(base_dir, "data", "Metro_Interstate_Traffic_Volume.csv")
+    data_path = os.path.join(base_dir, "capstone_part2", "cleaned_traffic.csv")
     report_path = os.path.join(base_dir, "capstone_part3", "reports", "monitoring_report.txt")
     figure_path = os.path.join(base_dir, "figures", "monitoring_drift.png")
 

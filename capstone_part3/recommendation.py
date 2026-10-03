@@ -15,7 +15,7 @@ import seaborn as sns
 
 logger = logging.getLogger(__name__)
 
-DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "Metro_Interstate_Traffic_Volume.csv")
+DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "capstone_part2", "cleaned_traffic.csv")
 FIGURES_DIR = os.path.join(os.path.dirname(__file__), "..", "figures")
 
 WEATHER_CATEGORY_MAP = {

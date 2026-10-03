@@ -29,7 +29,7 @@ from sklearn.preprocessing import StandardScaler
 logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_PATH = os.path.join(BASE_DIR, "data", "Metro_Interstate_Traffic_Volume.csv")
+DATA_PATH = os.path.join(BASE_DIR, "capstone_part2", "cleaned_traffic.csv")
 FIGURES_DIR = os.path.join(BASE_DIR, "figures")
 
 SEVERE_WEATHER = [

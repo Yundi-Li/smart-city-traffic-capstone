@@ -52,7 +52,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 logger = logging.getLogger(__name__)
 
-DATA_PATH = os.path.join("data", "Metro_Interstate_Traffic_Volume.csv")
+DATA_PATH = os.path.join("capstone_part2", "cleaned_traffic.csv")
 MLFLOW_TRACKING_DIR = os.path.join("capstone_part3", "mlflow_logs")
 EXPERIMENT_NAME = "traffic_volume_prediction"
 

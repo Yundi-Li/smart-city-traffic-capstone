@@ -3,15 +3,15 @@ MODEL MONITORING REPORT
 ============================================================
 
 --- Prediction Error Drift ---
-  First half MAE:  309.69
-  Second half MAE: 310.60
-  Change:          +0.29%
+  First half MAE:  309.96
+  Second half MAE: 302.32
+  Change:          -2.47%
   Status:          [PASS]
 
 --- Feature Distribution Drift (KS Test) ---
-  temp                  KS=0.0063  p=0.9168  [PASS]
-  traffic_volume        KS=0.0105  p=0.3615  [PASS]
-  clouds_all            KS=0.0051  p=0.9869  [PASS]
-  rain_1h               KS=0.0026  p=1.0000  [PASS]
+  temp                  KS=0.0095  p=0.5952  [PASS]
+  traffic_volume        KS=0.0073  p=0.8736  [PASS]
+  clouds_all            KS=0.0058  p=0.9805  [PASS]
+  rain_1h               KS=0.0059  p=0.9760  [PASS]
 
 ============================================================

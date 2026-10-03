@@ -60,7 +60,7 @@ def train_model() -> None:
     global model, encoder, weather_categories, quartile_thresholds
 
     repo_root = Path(__file__).resolve().parents[2]
-    data_path = repo_root / "data" / "Metro_Interstate_Traffic_Volume.csv"
+    data_path = repo_root / "capstone_part2" / "cleaned_traffic.csv"
 
     logger.info("Loading dataset from %s", data_path)
     df = pd.read_csv(data_path)

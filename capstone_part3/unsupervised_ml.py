@@ -200,7 +200,7 @@ def main() -> None:
     )
 
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    data_path = os.path.join(repo_root, "data", "Metro_Interstate_Traffic_Volume.csv")
+    data_path = os.path.join(repo_root, "capstone_part2", "cleaned_traffic.csv")
     figures_dir = os.path.join(repo_root, "capstone_part3", "figures")
     os.makedirs(figures_dir, exist_ok=True)
 
