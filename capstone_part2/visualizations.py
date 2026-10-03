@@ -37,7 +37,7 @@ def _save_figure(fig: plt.Figure, filename: str) -> None:
     for directory in (FIGURES_DIR, PART2_FIGURES_DIR):
         path = os.path.join(directory, filename)
         fig.savefig(path, dpi=150, bbox_inches="tight")
-        logger.info("Saved figure: %s", os.path.abspath(path))
+        logger.info("Saved figure: %s", path)
 
 
 def plot_traffic_by_hour(df: pd.DataFrame) -> None:

@@ -29,7 +29,7 @@ def setup_logging(debug: bool = False) -> None:
     level = logging.DEBUG if debug else logging.INFO
 
     formatter = logging.Formatter(
-        "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+        "%(asctime)s | %(levelname)-8s | %(module)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
