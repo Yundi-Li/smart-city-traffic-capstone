@@ -125,15 +125,21 @@ def cmd_recommend(df: pd.DataFrame, day_type: str, weather: str) -> None:
         print(f"Available weather types: {', '.join(sorted(available))}")
         return
 
-    hourly_avg = subset.groupby("hour")["traffic_volume"].mean().sort_values()
-    best_hours = hourly_avg.head(5)
+    hourly_avg = subset.groupby("hour")["traffic_volume"].mean()
+    # Restrict to realistic travel hours (06:00-22:00)
+    realistic = hourly_avg[(hourly_avg.index >= 6) & (hourly_avg.index <= 22)]
+    if realistic.empty:
+        realistic = hourly_avg
+    best_hours = realistic.sort_values().head(5)
+    peak_vol = realistic.max()
+    peak_hour = realistic.idxmax()
 
-    print(f"\nBest travel times ({day_type}, {weather} weather):")
-    print(f"{'Hour':>6}  {'Avg Volume':>12}  {'Recommendation'}")
+    print(f"\nBest travel times ({day_type}, {weather} weather, 06:00-22:00):")
+    print(f"{'Hour':>6}  {'Avg Volume':>12}  {'vs Peak'}")
     print("-" * 45)
     for hour, vol in best_hours.items():
-        label = "Excellent" if vol < 2000 else "Good" if vol < 3500 else "Fair"
-        print(f"{hour:>6}  {vol:>12.0f}  {label}")
+        pct = (1 - vol / peak_vol) * 100 if peak_vol > 0 else 0
+        print(f"{hour:02d}:00  {vol:>12,.0f}  {pct:.0f}% below {peak_hour:02d}:00 peak")
 
 
 def run_app(debug: bool = False) -> None:

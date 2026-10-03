@@ -136,14 +136,24 @@ def recommend_travel_time(df, day_type, weather_condition, top_n=3):
         logger.warning("Cannot recommend: no data for %s/%s", day_type, weather_condition)
         return []
 
-    best = stats.nsmallest(top_n, "mean")
+    # Restrict to realistic travel hours (06:00–22:00)
+    realistic = stats.loc[(stats.index >= 6) & (stats.index <= 22)]
+    if realistic.empty:
+        realistic = stats
+
+    best = realistic.nsmallest(top_n, "mean")
+    peak_hour = realistic["mean"].idxmax()
+    peak_volume = realistic["mean"].max()
+
     recommendations = []
 
     for hour, row in best.iterrows():
+        pct_below_peak = (1 - row["mean"] / peak_volume) * 100 if peak_volume > 0 else 0
         rec_text = (
             f"For a {day_type} journey in {weather_condition.lower()} weather, "
-            f"consider travelling between {_format_hour_range(hour)} "
-            f"when historical volumes average {row['mean']:,.0f} vehicles/hour."
+            f"consider travelling between {_format_hour_range(hour)}, "
+            f"when traffic is typically ~{row['mean']:,.0f} vehicles/hour, "
+            f"about {pct_below_peak:.0f}% below the {_format_hour(peak_hour)} peak."
         )
         recommendations.append({
             "hour": int(hour),
