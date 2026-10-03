@@ -1,6 +1,9 @@
 -- 1.1_row_count
 SELECT COUNT(*) AS total_rows FROM traffic;
 
+-- 1.1_unique_timestamps
+SELECT COUNT(DISTINCT date_time) AS unique_timestamps FROM traffic;
+
 -- 1.1_sample_rows
 SELECT * FROM traffic LIMIT 5;
 
@@ -19,28 +22,45 @@ SELECT
     SUM(CASE WHEN traffic_volume IS NULL THEN 1 ELSE 0 END) AS traffic_volume_nulls
 FROM traffic;
 
--- 1.2_annual_traffic_trends
+-- 1.2_annual_trends_deduped
+WITH deduped AS (
+    SELECT date_time,
+           AVG(temp) AS temp,
+           AVG(traffic_volume) AS traffic_volume
+    FROM traffic
+    GROUP BY date_time
+)
 SELECT
     CAST(strftime('%Y', date_time) AS INTEGER) AS year,
-    ROUND(AVG(traffic_volume), 2) AS avg_volume,
-    SUM(traffic_volume) AS total_volume,
-    COUNT(*) AS observations
-FROM traffic
+    COUNT(*) AS hours_of_data,
+    ROUND(AVG(traffic_volume), 2) AS avg_volume_per_hour,
+    CAST(SUM(traffic_volume) AS INTEGER) AS total_volume,
+    MIN(date_time) AS first_record,
+    MAX(date_time) AS last_record
+FROM deduped
 WHERE strftime('%Y', date_time) BETWEEN '2012' AND '2017'
 GROUP BY year
 ORDER BY year;
 
 -- 1.2_yoy_change
-WITH annual AS (
+WITH deduped AS (
+    SELECT date_time,
+           AVG(traffic_volume) AS traffic_volume
+    FROM traffic
+    GROUP BY date_time
+),
+annual AS (
     SELECT
         CAST(strftime('%Y', date_time) AS INTEGER) AS year,
+        COUNT(*) AS hours_of_data,
         ROUND(AVG(traffic_volume), 2) AS avg_volume
-    FROM traffic
+    FROM deduped
     WHERE strftime('%Y', date_time) BETWEEN '2012' AND '2017'
     GROUP BY year
 )
 SELECT
     a.year,
+    a.hours_of_data,
     a.avg_volume,
     LAG(a.avg_volume) OVER (ORDER BY a.year) AS prev_avg_volume,
     ROUND(a.avg_volume - LAG(a.avg_volume) OVER (ORDER BY a.year), 2) AS yoy_change,
@@ -52,18 +72,37 @@ FROM annual a
 ORDER BY a.year;
 
 -- 1.3_holiday_temperature
+WITH holiday_dates AS (
+    SELECT DISTINCT
+        holiday,
+        DATE(date_time) AS holiday_date,
+        CAST(strftime('%Y', date_time) AS INTEGER) AS year
+    FROM traffic
+    WHERE holiday IN ('New Years Day', 'Labor Day')
+      AND strftime('%Y', date_time) BETWEEN '2015' AND '2017'
+),
+deduped AS (
+    SELECT date_time,
+           DATE(date_time) AS record_date,
+           AVG(temp) AS temp,
+           AVG(traffic_volume) AS traffic_volume
+    FROM traffic
+    GROUP BY date_time
+)
 SELECT
-    holiday,
-    CAST(strftime('%Y', date_time) AS INTEGER) AS year,
-    COUNT(*) AS observations,
-    ROUND(AVG(temp), 2) AS avg_temp_k,
-    ROUND(MIN(temp), 2) AS min_temp_k,
-    ROUND(MAX(temp), 2) AS max_temp_k,
-    ROUND(AVG(temp) - 273.15, 2) AS avg_temp_c,
-    ROUND(AVG(traffic_volume), 2) AS avg_traffic
-FROM traffic
-WHERE holiday IN ('New Years Day', 'Labor Day')
-    AND strftime('%Y', date_time) BETWEEN '2015' AND '2017'
-GROUP BY holiday, year
-ORDER BY holiday, year;
+    hd.holiday,
+    hd.year,
+    hd.holiday_date,
+    COUNT(*) AS hours_observed,
+    ROUND(AVG(d.temp), 2) AS avg_temp_k,
+    ROUND(MIN(d.temp), 2) AS min_temp_k,
+    ROUND(MAX(d.temp), 2) AS max_temp_k,
+    ROUND(AVG(d.temp) - 273.15, 2) AS avg_temp_c,
+    ROUND(MIN(d.temp) - 273.15, 2) AS min_temp_c,
+    ROUND(MAX(d.temp) - 273.15, 2) AS max_temp_c,
+    ROUND(AVG(d.traffic_volume), 0) AS avg_traffic
+FROM holiday_dates hd
+JOIN deduped d ON d.record_date = hd.holiday_date
+GROUP BY hd.holiday, hd.year, hd.holiday_date
+ORDER BY hd.holiday, hd.year;
 

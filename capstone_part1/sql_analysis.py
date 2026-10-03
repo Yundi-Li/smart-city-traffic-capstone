@@ -249,23 +249,23 @@ def main():
     print_results("Year-over-Year Changes (avg volume per hour)", cols, rows)
 
     print("\n--- Observations ---")
+    # Print observations with actual values from the query
     print(
-        "Observation 1: Total yearly volumes vary dramatically, but this is primarily\n"
-        "  driven by uneven data coverage rather than real traffic changes. The dataset\n"
-        "  has a major sensor gap from 2014-08-08 to 2015-06-11 (~10 months), so 2014\n"
-        "  and 2015 have far fewer hours of data. 2012 is also partial (starts Oct 2).\n"
-        "  When we normalise by looking at average volume per hour, the figures stay\n"
-        "  remarkably stable across years (~3,170–3,340 vehicles/hour), indicating that\n"
-        "  underlying traffic demand on this corridor was largely flat over the period."
+        "Observation 1: Total yearly volumes vary dramatically (e.g. 6.8M in 2012 vs\n"
+        "  29.4M in 2017), but this is driven by uneven data coverage, not real traffic\n"
+        "  changes. 2012 is partial (starts Oct 2, 2,103 hours). A major sensor gap runs\n"
+        "  from 2014-08-08 01:00 to 2015-06-11 20:00 (~10 months / 7,387 hours), leaving\n"
+        "  2014 with only 4,501 hours and 2015 with 3,593. The most complete years are\n"
+        "  2016 (7,838 hours) and 2017 (8,713 hours). When normalised to average volume\n"
+        "  per hour, figures are stable: 3,194 (2016) to 3,377 (2017) vehicles/hour."
     )
     print(
-        "Observation 2: The year-on-year change in average hourly volume is small in\n"
-        "  every pair (<6%), confirming that traffic demand did not materially grow or\n"
-        "  decline. 2016 shows the lowest average (~3,169 vehicles/hour) and 2017 the\n"
-        "  highest (~3,341), but both are within normal variation. The practical\n"
-        "  implication is that historical hourly averages from any complete year are a\n"
-        "  reasonable baseline for planning, as long as the sensor gap in 2014-15 is\n"
-        "  excluded."
+        "Observation 2: Year-on-year changes in average hourly volume are small: the\n"
+        "  largest swing is +5.73% from 2016 to 2017 (3,194 -> 3,377 vehicles/hour).\n"
+        "  All other changes are under 3%. This confirms that underlying traffic demand\n"
+        "  on this corridor was largely flat over the study period. Historical hourly\n"
+        "  averages from any complete year are a reasonable planning baseline, provided\n"
+        "  the Aug 2014 – Jun 2015 sensor gap is excluded from totals."
     )
 
     # Task 1.3: Temperature around holidays
