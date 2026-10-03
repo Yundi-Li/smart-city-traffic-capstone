@@ -1,8 +1,12 @@
 """Test script for the Traffic Volume Prediction API."""
 
+import argparse
 import requests
 
-BASE_URL = "http://localhost:8000"
+parser = argparse.ArgumentParser(description="Test the Traffic Volume Prediction API")
+parser.add_argument("--port", type=int, default=8000, help="API port (default: 8000)")
+_args, _ = parser.parse_known_args()
+BASE_URL = f"http://localhost:{_args.port}"
 
 SAMPLE_REQUESTS = [
     {

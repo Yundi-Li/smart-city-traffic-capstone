@@ -83,6 +83,10 @@ Then open http://localhost:5000 to browse experiments, compare runs, and inspect
 
 `dashboard.py` generates `traffic_dashboard.html`, a supplementary interactive Plotly dashboard for exploring traffic patterns. It is not a Power BI replacement.
 
+## Portability Note
+
+MLflow stores absolute artifact paths in its SQLite database, so `mlflow ui` and registry-based model loading only work on the machine where the experiments were run. On another machine, the FastAPI deployment app automatically falls back to `capstone_part3/models/production_model/` (the same production GradientBoostingRegressor, saved via joblib). To review experiment runs without installing MLflow, see `reports/mlflow_summary.md`.
+
 ## Data Source
 
-All Part 3 scripts load from `capstone_part2/cleaned_traffic.csv` (40,575 rows, deduplicated and outlier-imputed), ensuring the data quality fixes from Part 2 carry forward.
+All Part 3 scripts load from `capstone_part2/featured_traffic.csv` (40,575 rows × 37 columns, deduplicated, outlier-imputed, with all engineered features), ensuring the data quality fixes and feature engineering from Part 2 carry forward.
