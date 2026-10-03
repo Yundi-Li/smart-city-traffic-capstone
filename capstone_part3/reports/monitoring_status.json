@@ -2,7 +2,7 @@
   "overall_status": "ALERT",
   "overall_message": "ALERT / Requires investigation",
   "prediction_error_drift": {
-    "status": "ALERT",
+    "status": "PASS",
     "holdout_mae": 385.54,
     "production_mae": 247.87,
     "pct_change": -35.71

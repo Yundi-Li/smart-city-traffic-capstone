@@ -106,12 +106,12 @@ Recommendations are grounded in historical averages from the cleaned dataset, no
 
 **Deployment:** FastAPI app with `/predict` endpoint (accepts hour, day_of_week, temp, weather, etc., returns predicted volume and congestion level) and `/health` endpoint. Test script validates both endpoints.
 
-**Monitoring:** Time-based drift detection trains on 2012-2016, treats 2018 as production data. Results:
-- Prediction error drift: holdout MAE vs production MAE → **ALERT** (requires investigation)
-- Feature drift: temp (KS=0.1251) → **ALERT**; clouds_all (KS=0.1006) → **ALERT**; rain_1h → PASS; hour → PASS
-- Overall status: **ALERT / Requires investigation**
+**Monitoring:** Time-based drift detection trains on 2012-2016 (holdout = last 20% chronologically), treats 2018 as production data. Results:
+- Prediction error drift: holdout MAE = 385.54, production MAE = 247.87, change = −35.71% → **PASS** (error decreased, not degraded)
+- Feature drift: temp (KS=0.1251, p≈0) → **ALERT**; clouds_all (KS=0.1006, p≈0) → **ALERT**; rain_1h → PASS; hour → PASS
+- Overall status: **ALERT / Requires investigation** (due to feature drift)
 
-The temp and clouds_all alerts are expected: the 2018 data only covers Jan–Sep, so its seasonal distribution differs from training data that includes complete years. This would trigger a retraining review in a production system.
+The temp and clouds_all alerts are expected: the 2018 data covers only Jan–Sep, so its seasonal temperature and cloud-cover distributions differ from the full-year training data. This would trigger a retraining review in a production system — not because the model is performing worse (it isn't), but because the input distribution has shifted and future degradation is possible.
 
 **Speed settings:** 30 epochs max for NN, SHAP computed on 1,000-row sample, silhouette analysis uses sample_size=5,000, n_estimators capped at 200 for tree models.
 

@@ -6,10 +6,10 @@ Training period:    2012-2016
 Production period:  2018 (6533 records)
 
 --- Prediction Error Drift ---
-  Holdout MAE (2016):        385.54
-  Production MAE (2018):     247.87
-  Change:                    -35.71%
-  Status:                    [ALERT]
+  Holdout MAE (2012-2016 tail):  385.54
+  Production MAE (2018):         247.87
+  Change:                        -35.71% (error decreased — no concern)
+  Status:                        [PASS]
 
 --- Feature Distribution Drift (KS Test: train vs 2018) ---
   temp                  KS=0.1251  p=0.0000  [ALERT]

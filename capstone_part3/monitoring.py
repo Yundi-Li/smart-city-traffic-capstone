@@ -115,7 +115,11 @@ def run_monitoring() -> None:
     prod_mae = float(np.abs(y_prod.values - prod_pred).mean())
 
     pct_change = (prod_mae - holdout_mae) / holdout_mae if holdout_mae > 0 else 0
-    drift_status = "ALERT" if abs(pct_change) > 0.20 else "PASS"
+    # ALERT only on degradation (error increase > 20%), not improvement
+    drift_status = "ALERT" if pct_change > 0.20 else "PASS"
+    drift_note = ""
+    if pct_change < 0:
+        drift_note = " (error decreased — no concern)"
 
     if drift_status == "ALERT":
         logger.warning(
@@ -124,8 +128,8 @@ def run_monitoring() -> None:
         )
     else:
         logger.info(
-            "Prediction error drift: holdout MAE=%.2f, production MAE=%.2f, change=%+.1f%%, status=%s",
-            holdout_mae, prod_mae, pct_change * 100, drift_status,
+            "Prediction error drift: holdout MAE=%.2f, production MAE=%.2f, change=%+.1f%%, status=%s%s",
+            holdout_mae, prod_mae, pct_change * 100, drift_status, drift_note,
         )
 
     # Feature distribution drift: KS test on key features
@@ -156,10 +160,10 @@ def run_monitoring() -> None:
         f"Production period:  2018 ({len(df_prod)} records)",
         "",
         "--- Prediction Error Drift ---",
-        f"  Holdout MAE (2016):        {holdout_mae:.2f}",
-        f"  Production MAE (2018):     {prod_mae:.2f}",
-        f"  Change:                    {pct_change * 100:+.2f}%",
-        f"  Status:                    [{drift_status}]",
+        f"  Holdout MAE (2012-2016 tail):  {holdout_mae:.2f}",
+        f"  Production MAE (2018):         {prod_mae:.2f}",
+        f"  Change:                        {pct_change * 100:+.2f}%{drift_note}",
+        f"  Status:                        [{drift_status}]",
         "",
         "--- Feature Distribution Drift (KS Test: train vs 2018) ---",
     ]
