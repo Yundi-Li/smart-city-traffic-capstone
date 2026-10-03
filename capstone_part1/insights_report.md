@@ -4,7 +4,7 @@
 
 ### Annual Trends (Task 1.2)
 
-The dataset contains 48,204 raw rows spanning October 2012 to September 2018, but coverage is uneven. After deduplicating timestamps (the dataset contains 5,445 duplicate timestamp entries with different weather readings), the unique hourly records per year are: 2012: 2,103 (partial, starts Oct 2); 2013: 7,294; 2014: 4,501; 2015: 3,593; 2016: 7,838; 2017: 8,713. A major sensor gap runs from 2014-08-08 01:00 to 2015-06-11 20:00 (~10 months), which makes raw yearly totals misleading.
+The dataset contains 48,204 raw rows spanning October 2012 to September 2018. After removing 17 exact duplicates and aggregating 5,430 timestamps that appear more than once (accounting for 7,612 extra rows from multiple weather readings per hour, resolved by keeping the most severe weather), the dataset contains 40,575 unique hourly records. Coverage is uneven: 2012: 2,103 (partial, starts Oct 2); 2013: 7,294; 2014: 4,501; 2015: 3,593; 2016: 7,838; 2017: 8,713. A major sensor gap runs from 2014-08-08 to 2015-06-11, which makes raw yearly totals misleading.
 
 | Year | Hours | Total Volume | YoY Change | YoY % | Avg/Hour |
 |------|-------|-------------|------------|-------|----------|

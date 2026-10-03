@@ -30,6 +30,8 @@ capstone_part3/
 ├── reports/
 │   ├── model_versions.md  # Model registry with metrics
 │   └── monitoring_report.txt
+├── dashboard.py           # Supplementary interactive dashboard (Plotly)
+├── traffic_dashboard.html # Generated dashboard output
 ├── responsible_ai.md      # Bias, fairness, governance report
 ├── capstone_report.md     # Final Part 3 report
 └── requirements.txt
@@ -75,7 +77,11 @@ python capstone_part3/deployment/test_api.py
 mlflow ui --backend-store-uri sqlite:///capstone_part3/mlflow_logs/mlflow.db
 ```
 
-Then open http://localhost:5000 to browse experiments.
+Then open http://localhost:5000 to browse experiments, compare runs, and inspect the Model Registry (2 versions of `traffic_volume_regressor`: v1=RF, v2=GBR with "production" alias).
+
+## Supplementary Dashboard
+
+`dashboard.py` generates `traffic_dashboard.html`, a supplementary interactive Plotly dashboard for exploring traffic patterns. It is not a Power BI replacement.
 
 ## Data Source
 

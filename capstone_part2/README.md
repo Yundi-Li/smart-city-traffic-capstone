@@ -9,8 +9,8 @@ capstone_part2/
 ├── visualizations.py        # Matplotlib chart generation
 ├── app.py                   # CLI mini-application for traffic queries
 ├── logging_config.py        # Centralised logging setup
-├── cleaned_traffic.csv      # Output of pipeline.py (40,575 rows)
-├── featured_traffic.csv     # Output of feature_engineering.py (40,575 rows × 33 cols)
+├── cleaned_traffic.csv      # Output of pipeline.py (40,575 rows × 10 cols) — generated output included for grading convenience; reproducible via the pipeline
+├── featured_traffic.csv     # Output of feature_engineering.py (40,575 rows × 37 cols) — generated output included for grading convenience; reproducible via the pipeline
 ├── requirements.txt         # Python dependencies
 ├── report.md                # Methodology and findings report
 ├── pipeline.log             # Sample log output (normal run)

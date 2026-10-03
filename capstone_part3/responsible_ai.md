@@ -22,11 +22,11 @@ The `high_risk` label is defined as `(congestion_category in [High, Severe]) AND
 
 ### 1.3 Uneven Error Distribution
 
-The regression model (GradientBoosting, MAE=273.68) does not err uniformly:
+The regression model (GradientBoosting, MAE=246.67) does not err uniformly:
 
 - **By hour:** MAE is higher during rush hours (07:00–08:00, 16:00–17:00) where traffic variance is greatest. Overnight predictions (00:00–05:00) are more accurate because volumes are consistently low.
 - **By weather:** Rare weather conditions (Squall: ~5 records, Smoke: ~50 records) have fewer training examples. Model performance on these conditions is unreliable.
-- **By season:** The 2018 drift monitoring showed statistically significant distribution shifts in temperature (KS=0.1303, p≈0) and cloud cover (KS=0.0858, p≈0), indicating the model may perform differently across seasons.
+- **By season:** The 2018 drift monitoring showed statistically significant distribution shifts in temperature (KS=0.1251) and cloud cover (KS=0.1006), indicating the model may perform differently across seasons.
 
 ## 2. Governance
 
@@ -36,7 +36,7 @@ Before any model is trusted for real-world traffic management decisions:
 
 - **Human-in-the-loop:** Traffic engineers and domain experts must review model recommendations before they affect signal timing or advisory messages.
 - **A/B testing:** Any automated intervention (e.g., adaptive signal timing) should be tested in a controlled corridor before system-wide deployment.
-- **Regular retraining:** The drift monitoring detected feature distribution shifts between training (2012–2017) and production (2018) data. A quarterly retraining cadence with fresh data is recommended.
+- **Regular retraining:** The drift monitoring detected feature distribution shifts between training (2012-2016) and production (2018) data. Overall status: ALERT / Requires investigation. A quarterly retraining cadence with fresh data is recommended.
 - **Transparent documentation:** Model limitations (single corridor, proxy labels, uneven errors) must be clearly communicated to decision-makers. The model version registry (`reports/model_versions.md`) provides a starting point.
 
 ### 2.2 Decision Boundaries
@@ -53,14 +53,14 @@ The model should inform but not replace human judgment. Specific boundaries:
 
 | Model | Training Time | MAE | R² |
 |-------|--------------|-----|-----|
-| GradientBoostingRegressor | ~6 seconds | 273.68 | 0.9425 |
-| RandomForestRegressor | ~3 seconds | 282.88 | 0.9376 |
-| PyTorch Neural Net | ~8 seconds | 347.58 | 0.9227 |
+| GradientBoostingRegressor | ~6 seconds | 246.67 | 0.9593 |
+| RandomForestRegressor | ~3 seconds | 248.75 | 0.9562 |
+| PyTorch Neural Net | ~8 seconds | 465.24 | 0.8972 |
 
 For this tabular dataset, tree-based models outperform the neural network while training faster. The neural network adds complexity and compute cost without improving accuracy. In a production setting, the GradientBoostingRegressor offers the best performance-to-compute ratio.
 
 ### 3.2 Environmental Considerations
 
-- The dataset is small (40,575 rows) and all models train in under 10 seconds on a consumer laptop. The carbon footprint of training is negligible.
+- The dataset is small (40,575 rows) and all models train in under 10 seconds on a consumer laptop. Training costs are small relative to large-scale deep learning but were not formally measured; approximate training times: GBR ~6s, RF ~3s, NN ~8s on a consumer laptop.
 - However, if scaled to a city-wide system with real-time predictions across hundreds of corridors, compute costs would grow substantially. Cloud GPU instances for neural network inference would have measurable energy costs.
 - **Recommendation:** Use the simpler GradientBoosting model for deployment. Reserve neural networks for cases where their additional complexity is justified by performance gains — which is not the case for this tabular traffic dataset.

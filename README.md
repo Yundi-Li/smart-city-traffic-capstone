@@ -13,8 +13,8 @@ smart-city-traffic-capstone/
 │   ├── queries.sql                  # All SQL queries
 │   ├── traffic.db                   # SQLite database
 │   ├── statistics_probability.py    # Descriptive stats & probability (Tasks 2-3)
-│   ├── dashboard.py                 # Interactive Plotly dashboard (Task 4)
-│   ├── traffic_dashboard.html       # Generated dashboard
+│   ├── dashboard.py                 # Supplementary interactive Plotly dashboard (Task 4)
+│   ├── traffic_dashboard.html       # Generated dashboard output
 │   ├── insights_report.md           # Part 1 findings report
 │   └── powerbi_instructions.md
 ├── capstone_part2/                  # Part 2 — Python Pipeline
@@ -23,8 +23,8 @@ smart-city-traffic-capstone/
 │   ├── visualizations.py            # Matplotlib chart generation
 │   ├── app.py                       # CLI mini-application
 │   ├── logging_config.py            # Centralised logging setup
-│   ├── cleaned_traffic.csv          # Pipeline output (40,575 rows)
-│   ├── featured_traffic.csv         # Featured output (40,575 × 33)
+│   ├── cleaned_traffic.csv          # Pipeline output (40,575 rows × 10 cols) — generated, reproducible via pipeline
+│   ├── featured_traffic.csv         # Featured output (40,575 × 37) — generated, reproducible via pipeline
 │   ├── pipeline.log                 # Sample log (normal run)
 │   ├── pipeline_debug_sample.log    # Sample log (debug run)
 │   ├── logs/pipeline.log            # Runtime log
@@ -105,6 +105,14 @@ uvicorn capstone_part3.deployment.app:app --reload
 python capstone_part3/deployment/test_api.py
 ```
 
+### MLflow UI
+
+```bash
+mlflow ui --backend-store-uri sqlite:///capstone_part3/mlflow_logs/mlflow.db
+```
+
+Then open http://localhost:5000 to browse experiments and the Model Registry.
+
 ## Logging
 
 All Python scripts use the `logging` module for internal status reporting. `print()` is used only for user-facing result tables.
@@ -120,4 +128,4 @@ Metro Interstate Traffic Volume dataset from Kaggle. ~48,204 raw hourly records 
 
 ## Proxy Accident-Risk Label
 
-No real accident dataset was provided. A proxy label was created: `high_risk = (congestion in [High, Severe]) AND (severe_weather OR is_low_visibility)`. This demonstrates the ML classification workflow and should not be interpreted as actual accident prediction. See `capstone_part3/README.md` for the exact definition.
+No real accident dataset was provided. A proxy label was created: `high_risk = (congestion_category in [High, Severe]) AND (severe_weather OR is_low_visibility)`. This demonstrates the ML classification workflow and should not be interpreted as actual accident prediction. See `capstone_part3/README.md` for the exact definition.
