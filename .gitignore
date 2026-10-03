@@ -65,8 +65,9 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
-# MLflow artifacts (large model binaries)
+# MLflow artifacts (large model binaries — too big for git)
 mlruns/
+capstone_part3/mlflow_logs/artifacts/
 
 # Flask stuff:
 instance/

@@ -64,19 +64,31 @@ SHAP was applied to a GradientBoostingRegressor surrogate (on a 1,000-row sample
 
 ## 4. Advanced AI Technique: MLflow Experiment Tracking
 
-MLflow was selected because it connects naturally to the MLOps pipeline. Three models were tracked:
+MLflow was selected because it connects naturally to the MLOps pipeline. Six models were tracked — four regression and two classification:
 
-| Model | MAE | R² |
-|-------|-----|-----|
-| RandomForestRegressor | 248.75 | 0.9562 |
-| GradientBoostingRegressor | 245.59 | 0.9593 |
-| PyTorchNeuralNet | 329.56 | 0.9429 |
+**Regression runs:**
+
+| Model | MAE | R² | Registry |
+|-------|-----|-----|----------|
+| LinearRegression | 826.36 | 0.7105 | v1 (baseline) |
+| GradientBoostingRegressor | 246.80 | 0.9593 | v2 (production) |
+| RandomForestRegressor | 251.25 | 0.9550 | — |
+| PyTorchNeuralNet | 345.85 | 0.9385 | — |
+
+**Classification runs:**
+
+| Model | Accuracy | F1 | ROC AUC |
+|-------|----------|-----|---------|
+| LogisticRegression | 0.9706 | 0.9058 | 0.9960 |
+| RandomForestClassifier | 0.9885 | 0.9603 | 0.9976 |
 
 **Why MLflow:** Reproducibility (exact parameters/metrics for every run), structured model comparison, artifact management (models stored with provenance), standardised API across frameworks.
 
-**Model Registry:** Two model versions were registered under the name `traffic_volume_regressor`: v1 = RandomForest, v2 = GradientBoosting (alias "production"). The registry enables stage-based promotion and rollback.
+**Model Registry:** Two versions registered under `traffic_volume_regressor`: v1 = LinearRegression (baseline), v2 = GradientBoosting (alias "production"). The registry enables stage-based promotion and rollback.
 
-**Limitations:** Adds I/O overhead, requires learning MLflow concepts, local file-backed store doesn't scale to teams.
+**Portability:** MLflow stores absolute paths in its SQLite DB, so the registry only works on the original machine. For portability, the production model is also saved to `capstone_part3/models/production_model/` via joblib. The FastAPI app loads from the registry first and falls back to the joblib folder.
+
+**Limitations:** Adds I/O overhead, requires learning MLflow concepts, local SQLite-backed store doesn't scale to teams.
 
 ## 5. Recommendation System
 

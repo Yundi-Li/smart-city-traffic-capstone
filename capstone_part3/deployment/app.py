@@ -80,13 +80,28 @@ def _load_mlflow_model():
         return False
 
 
+def _load_joblib_model():
+    """Load production model from the portable joblib folder."""
+    global model, model_source
+    import joblib
+
+    model_path = PART3_DIR / "models" / "production_model" / "gradient_boosting.joblib"
+    if not model_path.exists():
+        logger.info("Joblib model not found at %s", model_path)
+        return False
+
+    model = joblib.load(model_path)
+    model_source = "joblib_folder"
+    logger.info("Loaded production model from %s", model_path)
+    return True
+
+
 def _train_fallback_model():
-    """Train a GBR on featured data as fallback."""
+    """Train a GBR on featured data as last-resort fallback."""
     global model, model_source
 
     df = load_featured_data()
     fcols = get_feature_columns(df)
-
     X = df[fcols].values
     y = df["traffic_volume"].values
 
@@ -95,7 +110,7 @@ def _train_fallback_model():
     gbr.fit(X, y)
 
     model = gbr
-    model_source = "fallback_gbr"
+    model_source = "fallback_trained"
     logger.info("Fallback model training complete")
 
 
@@ -113,7 +128,8 @@ def _init_model():
     quartile_thresholds = {"q25": q25, "q50": q50, "q75": q75}
 
     if not _load_mlflow_model():
-        _train_fallback_model()
+        if not _load_joblib_model():
+            _train_fallback_model()
 
 
 def _build_feature_row(request: PredictRequest) -> np.ndarray:
@@ -177,7 +193,7 @@ async def predict(request: PredictRequest):
         if model_source == "mlflow_registry":
             prediction = float(model.predict(pd.DataFrame(X, columns=feature_cols))[0])
         else:
-            prediction = float(model.predict(X)[0])
+            prediction = float(model.predict(X)[0])  # joblib or fallback sklearn
 
         prediction = max(prediction, 0.0)
 

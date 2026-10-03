@@ -1,27 +1,34 @@
 # Model Version Registry
 
-## Regression Models — Traffic Volume Prediction
+## MLflow Model Registry: `traffic_volume_regressor`
 
-| Version | Algorithm | Key Parameters | MAE | R² | Status |
-|---------|-----------|---------------|-----|-----|--------|
+| Registry Version | Algorithm | Key Parameters | MAE | R² | Status |
+|-----------------|-----------|---------------|-----|-----|--------|
 | v1 | LinearRegression | default | 826.36 | 0.7105 | Baseline |
-| v2 | GradientBoostingRegressor | n_estimators=200, max_depth=5, lr=0.1 | 246.67 | 0.9593 | **Production** (MLflow Registry v2, alias "production") |
-| v3 | RandomForestRegressor | n_estimators=200, max_depth=15 | 248.75 | 0.9562 | Candidate (MLflow Registry v1) |
-| v4 | PyTorch Neural Net | 128-64-32, dropout 0.3/0.2, 30 epochs | 465.24 | 0.8972 | Experimental |
+| v2 | GradientBoostingRegressor | n_estimators=200, max_depth=5, lr=0.1 | 246.80 | 0.9593 | **Production** (alias "production") |
 
-## Classification Models — Proxy Accident-Risk Prediction
+## All Regression Models (tracked in MLflow)
 
-| Version | Algorithm | Key Parameters | Accuracy | Precision | Recall | F1 | ROC AUC | Status |
-|---------|-----------|---------------|----------|-----------|--------|-----|---------|--------|
-| v1 | LogisticRegression | max_iter=1000, balanced weights | 0.9705 | 0.8472 | 0.9724 | 0.9055 | 0.9960 | Baseline |
-| v2 | RandomForestClassifier | n_estimators=100, balanced weights | 0.9885 | 0.9627 | 0.9581 | 0.9604 | 0.9981 | **Production** |
+| Algorithm | MAE | R² | Registry |
+|-----------|-----|-----|----------|
+| LinearRegression | 826.36 | 0.7105 | v1 |
+| GradientBoostingRegressor | 246.80 | 0.9593 | v2 (production) |
+| RandomForestRegressor | 251.25 | 0.9550 | — |
+| PyTorch Neural Net (64→32→1, 30 epochs) | 345.85 | 0.9385 | — |
+
+## Classification Models (tracked in MLflow)
+
+| Algorithm | Accuracy | Precision | Recall | F1 | ROC AUC |
+|-----------|----------|-----------|--------|-----|---------|
+| LogisticRegression | 0.9706 | 0.8478 | 0.9724 | 0.9058 | 0.9960 |
+| RandomForestClassifier | 0.9885 | 0.9649 | 0.9558 | 0.9603 | 0.9976 |
+
+## Deployment Portability
+
+MLflow stores absolute paths in its SQLite DB, so the registry only works on the machine where it was created. For portability, the production model is also saved to `capstone_part3/models/production_model/` via joblib. The FastAPI deployment app loads from the MLflow registry first and falls back to the joblib folder if the registry is unavailable.
 
 ## Notes
 
-- All models trained on a chronological split: train 2012-2016, test 2017 (random splits leak neighbouring hours and inflate scores).
-- Feature set: cyclical hour/day encodings, is_weekend, is_holiday, is_low_visibility, temp, rain_1h, snow_1h, clouds_all, weather one-hot encoding.
-- GradientBoostingRegressor (v2) is the production regression model: best R² (0.9593) and lowest MAE (246.67). Registered in MLflow Model Registry as `traffic_volume_regressor` v2 with alias "production".
-- RandomForestClassifier (v2) is the production classifier: best F1 (0.9604) and ROC AUC (0.9981).
-- The high classification scores are partly inflated because the proxy label is derived from features the model can see (congestion category from traffic_volume quartiles combined with weather). This circularity means real-world performance would be lower.
-- All experiments tracked in MLflow (sqlite:///capstone_part3/mlflow_logs/mlflow.db). Model Registry contains 2 versions: v1=RF, v2=GBR (alias "production").
-- Data: Part 2 cleaned dataset (40,575 rows, deduplicated and outlier-imputed).
+- Chronological split: train 2012-2016, test 2017.
+- Classification scores are inflated by proxy label circularity (see responsible_ai.md).
+- Speed settings: n_estimators ≤ 200, NN 30 epochs max, SHAP on 1,000-row sample.
