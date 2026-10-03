@@ -2,6 +2,7 @@
 visualizations.py - Generate traffic analysis visualizations.
 """
 
+import argparse
 import logging
 import os
 
@@ -11,10 +12,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+import sys; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); from logging_config import setup_logging
+
 logger = logging.getLogger(__name__)
 
 FEATURED_DATA_PATH = os.path.join("capstone_part2", "featured_traffic.csv")
 FIGURES_DIR = "figures"
+PART2_FIGURES_DIR = os.path.join("capstone_part2", "figures")
 
 
 def load_data() -> pd.DataFrame:
@@ -26,6 +30,14 @@ def load_data() -> pd.DataFrame:
     except Exception:
         logger.error("Failed to load featured data", exc_info=True)
         raise
+
+
+def _save_figure(fig: plt.Figure, filename: str) -> None:
+    """Save figure to both figures/ and capstone_part2/figures/."""
+    for directory in (FIGURES_DIR, PART2_FIGURES_DIR):
+        path = os.path.join(directory, filename)
+        fig.savefig(path, dpi=150, bbox_inches="tight")
+        logger.info("Saved figure: %s", os.path.abspath(path))
 
 
 def plot_traffic_by_hour(df: pd.DataFrame) -> None:
@@ -44,12 +56,8 @@ def plot_traffic_by_hour(df: pd.DataFrame) -> None:
     ax.set_xticks(range(24))
     ax.grid(True, alpha=0.3)
 
-    path = os.path.join(FIGURES_DIR, "traffic_by_hour.png")
-    fig.savefig(path, dpi=150, bbox_inches="tight")
+    _save_figure(fig, "traffic_by_hour.png")
     plt.close(fig)
-    logger.info("Saved figure: %s", path)
-    # Interpretation: Weekday traffic shows clear morning (7-8am) and evening
-    # (4-5pm) rush-hour peaks, while weekend traffic has a single midday plateau.
 
 
 def plot_traffic_distribution(df: pd.DataFrame) -> None:
@@ -64,19 +72,14 @@ def plot_traffic_distribution(df: pd.DataFrame) -> None:
     ax.legend()
     ax.grid(True, alpha=0.3)
 
-    path = os.path.join(FIGURES_DIR, "traffic_distribution.png")
-    fig.savefig(path, dpi=150, bbox_inches="tight")
+    _save_figure(fig, "traffic_distribution.png")
     plt.close(fig)
-    logger.info("Saved figure: %s", path)
-    # Interpretation: The distribution is bimodal, with peaks near low and
-    # high traffic. Most traffic falls below the 5500 congestion threshold.
 
 
 def plot_temp_vs_traffic(df: pd.DataFrame) -> None:
     """Temperature vs traffic scatter plot colored by weather condition."""
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    # Use top 5 weather conditions for clarity
     top_weather = df["weather_main"].value_counts().head(5).index
     colors = plt.cm.Set2(np.linspace(0, 1, len(top_weather)))
 
@@ -91,13 +94,8 @@ def plot_temp_vs_traffic(df: pd.DataFrame) -> None:
     ax.legend(markerscale=4)
     ax.grid(True, alpha=0.3)
 
-    path = os.path.join(FIGURES_DIR, "temp_vs_traffic.png")
-    fig.savefig(path, dpi=150, bbox_inches="tight")
+    _save_figure(fig, "temp_vs_traffic.png")
     plt.close(fig)
-    logger.info("Saved figure: %s", path)
-    # Interpretation: Traffic volume is relatively stable across temperatures,
-    # but drops notably at extreme cold. Weather condition has limited visual
-    # impact on this relationship.
 
 
 def plot_traffic_heatmap(df: pd.DataFrame) -> None:
@@ -118,23 +116,16 @@ def plot_traffic_heatmap(df: pd.DataFrame) -> None:
     ax.set_title("Average Traffic Volume by Day of Week and Hour")
     fig.colorbar(im, ax=ax, label="Avg Traffic Volume")
 
-    path = os.path.join(FIGURES_DIR, "traffic_heatmap.png")
-    fig.savefig(path, dpi=150, bbox_inches="tight")
+    _save_figure(fig, "traffic_heatmap.png")
     plt.close(fig)
-    logger.info("Saved figure: %s", path)
-    # Interpretation: The heatmap confirms weekday rush-hour patterns
-    # (Mon-Fri 7-8am, 4-5pm) and the absence of these peaks on weekends.
 
 
-def run_visualizations() -> None:
+def run_visualizations(debug: bool = False) -> None:
     """Generate all visualizations."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s | %(levelname)-8s | %(module)s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
+    setup_logging(debug=debug)
 
     os.makedirs(FIGURES_DIR, exist_ok=True)
+    os.makedirs(PART2_FIGURES_DIR, exist_ok=True)
     logger.info("Starting visualization generation")
 
     try:
@@ -150,4 +141,7 @@ def run_visualizations() -> None:
 
 
 if __name__ == "__main__":
-    run_visualizations()
+    parser = argparse.ArgumentParser(description="Generate traffic visualizations")
+    parser.add_argument("--debug", action="store_true", help="Enable DEBUG logging")
+    args = parser.parse_args()
+    run_visualizations(debug=args.debug)

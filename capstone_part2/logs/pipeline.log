@@ -1,0 +1,25 @@
+2026-10-03 22:37:34 | INFO     | __main__ | Starting data cleaning pipeline
+2026-10-03 22:37:34 | INFO     | __main__ | Loaded 48204 rows and 9 columns from data/Metro_Interstate_Traffic_Volume.csv
+2026-10-03 22:37:34 | INFO     | __main__ | Schema validation passed - all 9 expected columns present
+2026-10-03 22:37:35 | WARNING  | __main__ | Standardised weather values: 0 weather_main, 1730 weather_description entries adjusted
+2026-10-03 22:37:35 | INFO     | __main__ | Parsed date_time column successfully
+2026-10-03 22:37:35 | WARNING  | __main__ | Removing 17 exact duplicate rows
+2026-10-03 22:37:35 | WARNING  | __main__ | Removing 7612 rows with duplicate date_time values (keeping first occurrence)
+2026-10-03 22:37:35 | WARNING  | __main__ | Detected 10 rows with 0 Kelvin temperature
+2026-10-03 22:37:35 | WARNING  | __main__ | Detected 1 rows with rain_1h > 9000mm
+2026-10-03 22:37:35 | WARNING  | __main__ | Imputed 10 temp outliers and 1 rain outliers with monthly medians
+2026-10-03 22:37:35 | INFO     | __main__ | Cleaned data saved to capstone_part2/cleaned_traffic.csv (40575 rows, 9 columns)
+2026-10-03 22:37:35 | INFO     | __main__ | Pipeline completed successfully
+2026-10-03 22:37:35 | INFO     | __main__ | Starting feature engineering
+2026-10-03 22:37:35 | INFO     | __main__ | Loaded cleaned data: 40575 rows, 9 columns
+2026-10-03 22:37:35 | INFO     | __main__ | Shape before feature engineering: (40575, 9)
+2026-10-03 22:37:35 | INFO     | __main__ | Added time features: hour, day_of_week, is_weekend, cyclical encodings
+2026-10-03 22:37:35 | INFO     | __main__ | Added 11 one-hot weather columns, is_rainy, is_snowy
+2026-10-03 22:37:35 | DEBUG    | __main__ | Min-max scaled temp: min=243.3900, max=310.0700
+2026-10-03 22:37:35 | DEBUG    | __main__ | Min-max scaled clouds_all: min=0.0000, max=100.0000
+2026-10-03 22:37:35 | DEBUG    | __main__ | Min-max scaled rain_1h: min=0.0000, max=55.6300
+2026-10-03 22:37:35 | INFO     | __main__ | Added normalized features: temp_norm, clouds_all_norm, rain_1h_norm
+2026-10-03 22:37:35 | DEBUG    | __main__ | Quartile thresholds - Q1: 1248.5, Q2: 3427.0, Q3: 4952.0
+2026-10-03 22:37:35 | INFO     | __main__ | Added congestion category: {'High': np.int64(10145), 'Medium': np.int64(10144), 'Low': np.int64(10144), 'Severe': np.int64(10142)}
+2026-10-03 22:37:35 | INFO     | __main__ | Shape after feature engineering: (40575, 33)
+2026-10-03 22:37:35 | INFO     | __main__ | Featured data saved to capstone_part2/featured_traffic.csv

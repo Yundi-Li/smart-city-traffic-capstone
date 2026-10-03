@@ -1,15 +1,18 @@
 """
 pipeline.py - Main data cleaning and validation pipeline for I-94 traffic data.
 
-Run standalone: python -m capstone_part2.pipeline
+Run standalone: python capstone_part2/pipeline.py [--debug]
 """
 
+import argparse
 import logging
 import os
 import sys
 
 import pandas as pd
 import numpy as np
+
+import sys; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); from logging_config import setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -21,28 +24,6 @@ EXPECTED_COLUMNS = [
 RAW_DATA_PATH = os.path.join("data", "Metro_Interstate_Traffic_Volume.csv")
 OUTPUT_DIR = "capstone_part2"
 CLEANED_DATA_PATH = os.path.join(OUTPUT_DIR, "cleaned_traffic.csv")
-LOG_FILE_PATH = os.path.join(OUTPUT_DIR, "pipeline.log")
-
-
-def configure_logging() -> None:
-    """Set up console + file logging with timestamp, level, and module."""
-    formatter = logging.Formatter(
-        "%(asctime)s | %(levelname)-8s | %(module)s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(formatter)
-
-    file_handler = logging.FileHandler(LOG_FILE_PATH, mode="w")
-    file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(formatter)
-
-    root = logging.getLogger()
-    root.setLevel(logging.DEBUG)
-    root.addHandler(console_handler)
-    root.addHandler(file_handler)
 
 
 def load_data(path: str) -> pd.DataFrame:
@@ -81,10 +62,14 @@ def standardise_weather(df: pd.DataFrame) -> pd.DataFrame:
 
     changed_main = (before["weather_main"] != df["weather_main"]).sum()
     changed_desc = (before["weather_description"] != df["weather_description"]).sum()
-    logger.warning(
-        "Standardised weather values: %d weather_main, %d weather_description entries adjusted",
-        changed_main, changed_desc,
-    )
+    total_changed = changed_main + changed_desc
+    if total_changed > 0:
+        logger.warning(
+            "Standardised weather values: %d weather_main, %d weather_description entries adjusted",
+            changed_main, changed_desc,
+        )
+    else:
+        logger.info("No weather values needed standardisation")
     return df
 
 
@@ -100,13 +85,25 @@ def parse_datetime(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
-    """Remove duplicate rows."""
-    dup_count = df.duplicated().sum()
-    if dup_count > 0:
-        logger.warning("Removing %d duplicate rows", dup_count)
+    """Remove exact duplicate rows and deduplicate by timestamp."""
+    # Step 1: exact duplicates
+    exact_dup_count = df.duplicated().sum()
+    if exact_dup_count > 0:
+        logger.warning("Removing %d exact duplicate rows", exact_dup_count)
         df = df.drop_duplicates().reset_index(drop=True)
     else:
-        logger.info("No duplicate rows found")
+        logger.info("No exact duplicate rows found")
+
+    # Step 2: duplicate timestamps - keep first occurrence
+    ts_dup_mask = df.duplicated(subset=["date_time"], keep="first")
+    ts_dup_count = ts_dup_mask.sum()
+    if ts_dup_count > 0:
+        logger.warning(
+            "Removing %d rows with duplicate date_time values (keeping first occurrence)",
+            ts_dup_count,
+        )
+        df = df[~ts_dup_mask].reset_index(drop=True)
+
     return df
 
 
@@ -149,9 +146,9 @@ def detect_and_impute_outliers(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def run_pipeline() -> None:
+def run_pipeline(debug: bool = False) -> None:
     """Execute the full cleaning pipeline."""
-    configure_logging()
+    setup_logging(debug=debug)
     logger.info("Starting data cleaning pipeline")
 
     try:
@@ -173,4 +170,7 @@ def run_pipeline() -> None:
 
 
 if __name__ == "__main__":
-    run_pipeline()
+    parser = argparse.ArgumentParser(description="I-94 traffic data cleaning pipeline")
+    parser.add_argument("--debug", action="store_true", help="Enable DEBUG logging")
+    args = parser.parse_args()
+    run_pipeline(debug=args.debug)

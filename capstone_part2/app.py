@@ -2,11 +2,14 @@
 app.py - Command-line mini-application for querying I-94 traffic data.
 """
 
+import argparse
 import logging
 import os
 import sys
 
 import pandas as pd
+
+import sys; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); from logging_config import setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -133,13 +136,9 @@ def cmd_recommend(df: pd.DataFrame, day_type: str, weather: str) -> None:
         print(f"{hour:>6}  {vol:>12.0f}  {label}")
 
 
-def run_app() -> None:
+def run_app(debug: bool = False) -> None:
     """Run the interactive command-line application."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s | %(levelname)-8s | %(module)s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
+    setup_logging(debug=debug)
 
     try:
         df = load_data()
@@ -198,4 +197,7 @@ def run_app() -> None:
 
 
 if __name__ == "__main__":
-    run_app()
+    parser = argparse.ArgumentParser(description="I-94 Traffic Analysis CLI")
+    parser.add_argument("--debug", action="store_true", help="Enable DEBUG logging")
+    args = parser.parse_args()
+    run_app(debug=args.debug)

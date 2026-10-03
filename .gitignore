@@ -59,6 +59,8 @@ cover/
 # Django stuff:
 *.log
 !capstone_part2/pipeline.log
+!capstone_part2/pipeline_debug_sample.log
+!capstone_part2/logs/pipeline.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal

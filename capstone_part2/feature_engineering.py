@@ -2,11 +2,14 @@
 feature_engineering.py - Create ML-ready features from cleaned traffic data.
 """
 
+import argparse
 import logging
 import os
 
 import numpy as np
 import pandas as pd
+
+import sys; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); from logging_config import setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -56,14 +59,14 @@ def add_weather_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def add_numerical_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Min-max scale temp and traffic_volume."""
-    for col in ["temp", "traffic_volume"]:
+    """Min-max scale continuous input variables: temp, clouds_all, rain_1h."""
+    for col in ["temp", "clouds_all", "rain_1h"]:
         col_min = df[col].min()
         col_max = df[col].max()
         df[f"{col}_norm"] = (df[col] - col_min) / (col_max - col_min)
-        logger.debug("Min-max scaled %s: min=%.2f, max=%.2f", col, col_min, col_max)
+        logger.debug("Min-max scaled %s: min=%.4f, max=%.4f", col, col_min, col_max)
 
-    logger.info("Added normalized temp and traffic_volume features")
+    logger.info("Added normalized features: temp_norm, clouds_all_norm, rain_1h_norm")
     return df
 
 
@@ -88,26 +91,23 @@ def add_congestion_category(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def run_feature_engineering() -> None:
+def run_feature_engineering(debug: bool = False) -> None:
     """Execute the full feature engineering pipeline."""
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(asctime)s | %(levelname)-8s | %(module)s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
+    setup_logging(debug=debug)
 
     logger.info("Starting feature engineering")
 
     try:
         df = load_cleaned_data()
         shape_before = df.shape
+        logger.info("Shape before feature engineering: %s", shape_before)
 
         df = add_time_features(df)
         df = add_weather_features(df)
         df = add_numerical_features(df)
         df = add_congestion_category(df)
 
-        logger.info("Dataset shape: before=%s, after=%s", shape_before, df.shape)
+        logger.info("Shape after feature engineering: %s", df.shape)
 
         df.to_csv(FEATURED_DATA_PATH, index=False)
         logger.info("Featured data saved to %s", FEATURED_DATA_PATH)
@@ -117,4 +117,7 @@ def run_feature_engineering() -> None:
 
 
 if __name__ == "__main__":
-    run_feature_engineering()
+    parser = argparse.ArgumentParser(description="Feature engineering for I-94 traffic data")
+    parser.add_argument("--debug", action="store_true", help="Enable DEBUG logging")
+    args = parser.parse_args()
+    run_feature_engineering(debug=args.debug)
