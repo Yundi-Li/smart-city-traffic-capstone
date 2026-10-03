@@ -150,6 +150,41 @@ def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def check_missing_values(df: pd.DataFrame) -> pd.DataFrame:
+    """Check for missing values in each column and handle them."""
+    missing = df.isnull().sum()
+    total_missing = missing.sum()
+
+    for col, count in missing.items():
+        if count > 0:
+            logger.info("Column '%s' has %d missing values", col, count)
+        else:
+            logger.info("Column '%s': no missing values", col)
+
+    # Holiday missingness is expected — non-holiday hours have "No Holiday"
+    holiday_no_holiday = (df["holiday"] == "No Holiday").sum()
+    if holiday_no_holiday > 0:
+        logger.warning(
+            "Holiday column: %d rows are 'No Holiday' (expected for non-holiday hours)",
+            holiday_no_holiday,
+        )
+
+    # Impute unexpected numeric nulls with monthly median
+    numeric_cols = ["temp", "rain_1h", "snow_1h", "clouds_all", "traffic_volume"]
+    df["_month"] = df["date_time"].dt.month
+    for col in numeric_cols:
+        null_count = df[col].isnull().sum()
+        if null_count > 0:
+            logger.warning("Imputing %d missing values in '%s' with monthly median", null_count, col)
+            for month in range(1, 13):
+                month_mask = df["_month"] == month
+                median_val = df.loc[month_mask & df[col].notnull(), col].median()
+                df.loc[month_mask & df[col].isnull(), col] = median_val
+    df = df.drop(columns=["_month"])
+
+    return df
+
+
 def detect_and_impute_outliers(df: pd.DataFrame) -> pd.DataFrame:
     """Detect physically implausible values and impute with monthly medians."""
     df["month"] = df["date_time"].dt.month
@@ -200,6 +235,7 @@ def run_pipeline(debug: bool = False) -> None:
         df = standardise_weather(df)
         df = parse_datetime(df)
         df = remove_duplicates(df)
+        df = check_missing_values(df)
         df = detect_and_impute_outliers(df)
 
         os.makedirs(OUTPUT_DIR, exist_ok=True)
