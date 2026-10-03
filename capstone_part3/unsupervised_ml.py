@@ -34,66 +34,114 @@ def load_data(filepath: str) -> pd.DataFrame:
 # K-Means Clustering
 # ---------------------------------------------------------------------------
 
+WEATHER_SEVERITY = {
+    "Clear": 0, "Clouds": 1, "Mist": 2, "Haze": 2, "Drizzle": 2,
+    "Rain": 3, "Fog": 3, "Snow": 4, "Thunderstorm": 4, "Squall": 4, "Smoke": 4,
+}
+
+
 def run_kmeans(df: pd.DataFrame, figures_dir: str) -> pd.DataFrame:
-    """Run K-Means clustering with elbow method, save plots, return labelled df."""
-    features = ["hour", "temp", "traffic_volume", "clouds_all"]
-    cluster_df = df[features].dropna().copy()
-    logger.info("Clustering on %d rows after dropping NaNs", len(cluster_df))
+    """Run K-Means clustering on cyclical hour, weather severity, and traffic volume."""
+    from sklearn.metrics import silhouette_score
+
+    cluster_df = df[["hour", "weather_main", "traffic_volume"]].dropna().copy()
+    cluster_df["hour_sin"] = np.sin(2 * np.pi * cluster_df["hour"] / 24)
+    cluster_df["hour_cos"] = np.cos(2 * np.pi * cluster_df["hour"] / 24)
+    cluster_df["weather_severity"] = cluster_df["weather_main"].map(WEATHER_SEVERITY).fillna(2)
+
+    features = ["hour_sin", "hour_cos", "weather_severity", "traffic_volume"]
+    logger.info("Clustering on %d rows with features: %s", len(cluster_df), features)
 
     scaler = MinMaxScaler()
-    scaled = scaler.fit_transform(cluster_df)
-    scaled_cols = [f"{c}_normalized" for c in features]
-    scaled_df = pd.DataFrame(scaled, columns=scaled_cols, index=cluster_df.index)
+    scaled = scaler.fit_transform(cluster_df[features])
 
-    # Elbow method (k=2..8)
+    # Elbow + silhouette (k=2..8)
     k_range = range(2, 9)
-    inertias = []
+    inertias, silhouettes = [], []
     for k in k_range:
         km = KMeans(n_clusters=k, random_state=42, n_init=10)
-        km.fit(scaled_df)
+        labels = km.fit_predict(scaled)
         inertias.append(km.inertia_)
-        logger.info("k=%d  inertia=%.2f", k, km.inertia_)
+        sil = silhouette_score(scaled, labels, sample_size=5000, random_state=42)
+        silhouettes.append(sil)
+        logger.info("k=%d  inertia=%.2f  silhouette=%.4f", k, km.inertia_, sil)
 
-    plt.figure(figsize=(8, 5))
-    plt.plot(list(k_range), inertias, "bo-")
-    plt.xlabel("Number of Clusters (k)")
-    plt.ylabel("Inertia")
-    plt.title("Elbow Method for Optimal k")
-    plt.xticks(list(k_range))
+    best_k = k_range[np.argmax(silhouettes)]
+    logger.info("Best k by silhouette: %d (score=%.4f)", best_k, max(silhouettes))
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    ax1.plot(list(k_range), inertias, "bo-")
+    ax1.set_xlabel("k")
+    ax1.set_ylabel("Inertia")
+    ax1.set_title("Elbow Method")
+    ax2.plot(list(k_range), silhouettes, "ro-")
+    ax2.set_xlabel("k")
+    ax2.set_ylabel("Silhouette Score")
+    ax2.set_title("Silhouette Analysis")
     plt.tight_layout()
     elbow_path = os.path.join(figures_dir, "elbow_method.png")
     plt.savefig(elbow_path, dpi=150)
     plt.close()
-    logger.info("Saved elbow plot to %s", elbow_path)
+    logger.info("Saved elbow/silhouette plot to %s", elbow_path)
 
-    # Fit with k=4
+    # Fit with chosen k=4
     chosen_k = 4
     km_final = KMeans(n_clusters=chosen_k, random_state=42, n_init=10)
-    cluster_df["cluster"] = km_final.fit_predict(scaled_df)
+    cluster_df["cluster"] = km_final.fit_predict(scaled)
 
-    # Cluster descriptions
-    print("\n=== K-Means Cluster Descriptions (k=4) ===")
-    for c in range(chosen_k):
-        subset = cluster_df[cluster_df["cluster"] == c]
-        print(f"\nCluster {c} (n={len(subset)}):")
-        for feat in features:
-            print(f"  {feat}: mean={subset[feat].mean():.2f}")
+    # Sort clusters by mean traffic volume for consistent naming
+    cluster_means = cluster_df.groupby("cluster")[["hour", "weather_severity", "traffic_volume"]].mean()
+    cluster_means = cluster_means.sort_values("traffic_volume")
+    rank = {old: new for new, old in enumerate(cluster_means.index)}
+    cluster_df["cluster"] = cluster_df["cluster"].map(rank)
 
-    # Scatter visualisation (hour vs traffic_volume coloured by cluster)
+    # Cluster descriptions with practical names
+    cluster_profiles = cluster_df.groupby("cluster").agg(
+        size=("hour", "size"),
+        mean_hour=("hour", "mean"),
+        mean_severity=("weather_severity", "mean"),
+        mean_volume=("traffic_volume", "mean"),
+    ).sort_index()
+
+    cluster_names = {}
+    for c, row in cluster_profiles.iterrows():
+        h = row["mean_hour"]
+        v = row["mean_volume"]
+        if v < 1500:
+            name = "Night lull"
+            action = "Low-demand window suitable for roadwork and lane closures"
+        elif v < 3000 and (h > 18 or h < 8):
+            name = "Shoulder hours"
+            action = "Transitional period; ramp metering can smooth flow"
+        elif v >= 4500:
+            name = "Peak commute"
+            action = "Signal priority and congestion pricing most effective here"
+        else:
+            name = "Midday moderate"
+            action = "Stable flow; standard signal timing sufficient"
+        cluster_names[c] = (name, action)
+
+    print("\n=== K-Means Cluster Profiles (k=4) ===")
+    print(f"{'Cluster':<10} {'Name':<30} {'Size':>6} {'Avg Hour':>9} {'Avg Severity':>13} {'Avg Volume':>11}")
+    print("-" * 90)
+    for c, row in cluster_profiles.iterrows():
+        name, action = cluster_names[c]
+        print(f"{c:<10} {name:<30} {int(row['size']):>6} {row['mean_hour']:>9.1f} {row['mean_severity']:>13.2f} {row['mean_volume']:>11.0f}")
+        print(f"{'':>10} -> {action}")
+
+    # Scatter (hour vs traffic, coloured by cluster)
     plt.figure(figsize=(10, 6))
     for c in range(chosen_k):
         mask = cluster_df["cluster"] == c
+        name = cluster_names[c][0]
         plt.scatter(
-            cluster_df.loc[mask, "hour"],
-            cluster_df.loc[mask, "traffic_volume"],
-            label=f"Cluster {c}",
-            alpha=0.4,
-            s=10,
+            cluster_df.loc[mask, "hour"], cluster_df.loc[mask, "traffic_volume"],
+            label=f"C{c}: {name}", alpha=0.4, s=10,
         )
     plt.xlabel("Hour of Day")
     plt.ylabel("Traffic Volume")
-    plt.title("K-Means Clusters (k=4)")
-    plt.legend()
+    plt.title("K-Means Traffic Condition Clusters (k=4)")
+    plt.legend(fontsize=8)
     plt.tight_layout()
     cluster_path = os.path.join(figures_dir, "kmeans_clusters.png")
     plt.savefig(cluster_path, dpi=150)

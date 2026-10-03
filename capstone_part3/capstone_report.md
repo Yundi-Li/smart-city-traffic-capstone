@@ -26,14 +26,14 @@ GradientBoosting achieves R² = 0.9425 and MAE = 273.68 vehicles/hour, substanti
 
 ### K-Means Clustering (k=4)
 
-| Cluster | Size | Mean Hour | Mean Temp (K) | Mean Volume | Mean Clouds |
-|---------|------|-----------|---------------|-------------|-------------|
-| 0 | 15,567 | 14.4 | 283.4 | 4,299 | 10.9 |
-| 1 | 6,825 | 3.3 | 277.8 | 930 | 85.0 |
-| 2 | 7,510 | 3.1 | 279.9 | 933 | 7.4 |
-| 3 | 10,673 | 15.7 | 275.4 | 4,153 | 86.0 |
+Clustering used cyclical hour encoding, an ordinal weather severity score (Clear=0, Clouds=1, Mist/Haze/Drizzle=2, Rain/Fog=3, Snow/Thunderstorm/Squall/Smoke=4), and traffic volume, all min-max scaled. The elbow method and silhouette analysis both supported k=4.
 
-The clusters correspond to interpretable traffic regimes: daytime clear (cluster 0), overnight cloudy (1), overnight clear (2), and daytime overcast (3). The elbow method confirmed k=4 as optimal.
+| Cluster | Name | Size | Avg Hour | Avg Severity | Avg Volume | Operational Meaning |
+|---------|------|------|----------|-------------|------------|---------------------|
+| 0 | Night lull | 10,966 | 2.8 | 1.22 | 843 | Schedule roadwork and lane closures |
+| 1 | Shoulder hours | 8,695 | 20.9 | 1.15 | 2,516 | Transitional; ramp metering smooths flow |
+| 2 | Peak commute (AM) | 10,955 | 9.2 | 1.29 | 4,723 | Signal priority and congestion pricing |
+| 3 | Peak commute (PM) | 9,959 | 15.5 | 1.23 | 5,086 | Signal priority and congestion pricing |
 
 ### Association Rule Mining
 
@@ -41,13 +41,13 @@ Top 5 rules by lift:
 
 | Rule | Support | Confidence | Lift |
 |------|---------|------------|------|
-| weekend + afternoon → High congestion + cloudy | 0.025 | 0.44 | 3.47 |
-| High congestion + cloudy → weekend + afternoon | 0.025 | 0.20 | 3.47 |
-| weekend + afternoon + clear → High congestion | 0.012 | 0.84 | 3.35 |
+| High congestion + cloudy → weekend + afternoon | 0.027 | 0.21 | 3.56 |
+| weekend + afternoon → High congestion + cloudy | 0.027 | 0.45 | 3.56 |
+| weekend + afternoon + clear → High congestion | 0.014 | 0.84 | 3.37 |
+| weekend + afternoon + cloudy → High congestion | 0.027 | 0.83 | 3.33 |
 | weekend + afternoon → High congestion | 0.050 | 0.83 | 3.33 |
-| Medium congestion + morning → weekend + cloudy | 0.019 | 0.45 | 3.27 |
 
-These rules reveal that weekend afternoons are strongly associated with the "High" congestion category (lift > 3.3), and that this pattern holds across weather types.
+Weekend afternoons are strongly associated with "High" congestion (lift > 3.3), and this holds across weather types. The highest-lift rule (3.56) links High congestion in cloudy weather specifically to weekend afternoons.
 
 ## 3. Deep Learning and Explainability
 
