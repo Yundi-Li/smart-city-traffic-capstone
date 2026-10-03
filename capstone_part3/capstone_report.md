@@ -1,213 +1,111 @@
-# Capstone Part 3: Final Report -- Smart City Traffic Analysis
-
-## Executive Summary
-
-This report presents the methodology and findings from Part 3 of the Smart City Traffic capstone project. Using the Metro Interstate Traffic Volume dataset (I-94 westbound, Minneapolis-St. Paul, 2012-2018, approximately 48,000 hourly observations), the project applies supervised and unsupervised machine learning, deep learning with explainability, experiment tracking, deployment via a REST API, and responsible AI analysis. The goal is to build a system that predicts traffic volume, classifies high-risk conditions, and provides actionable travel timing recommendations.
-
----
+# Part 3 Final Report: Machine Learning and AI for Traffic Intelligence
 
 ## 1. Supervised Machine Learning
 
-### 1.1 Feature Engineering
+Two supervised learning tasks were developed using a common feature set: cyclical hour/day encodings, is_weekend, is_holiday, is_low_visibility, temp, rain_1h, snow_1h, clouds_all, and one-hot encoded weather_main. Data source: Part 2 cleaned dataset (40,575 rows).
 
-A shared feature set was engineered from the raw dataset for both classification and regression tasks:
+### Classification — Proxy Accident-Risk Prediction
 
-- **Cyclical time encodings:** Hour and day-of-week were encoded as sine/cosine pairs to capture their circular nature (e.g., hour 23 is close to hour 0).
-- **Binary indicators:** Weekend flag (Saturday/Sunday) and holiday flag (any non-"None" holiday value).
-- **Numerical weather features:** Temperature (Kelvin), hourly rain and snow accumulation, and cloud cover percentage.
-- **One-hot encoded weather categories:** The `weather_main` column was expanded into binary columns for each weather type (Clear, Clouds, Rain, Snow, Thunderstorm, Fog, etc.).
+| Model | Accuracy | Precision | Recall | F1 | ROC AUC |
+|-------|----------|-----------|--------|-----|---------|
+| LogisticRegression | 0.9646 | 0.8003 | 0.9874 | 0.8840 | 0.9942 |
+| RandomForestClassifier | 0.9866 | 0.9317 | 0.9729 | 0.9519 | 0.9973 |
 
-### 1.2 Classification: High-Risk Traffic Prediction
+**Important caveat:** These scores are inflated because the proxy label is constructed from features the model can see. The `high_risk` label depends on `congestion_category` (derived from `traffic_volume` quartiles) and `weather_main` — both of which influence the feature space. This circularity means real-world accident prediction performance would be substantially lower. The classification task demonstrates the ML workflow, not a production-ready accident predictor.
 
-A synthetic `high_risk` label was constructed by combining two conditions: (1) traffic volume in the top two quartiles (High or Severe congestion) coinciding with severe weather (Thunderstorm, Squall, Fog, Smoke, Haze, Mist, Snow, Rain), or (2) cloud cover above 80% with low-visibility weather (Fog, Mist, Haze, Smoke). This label represents a proxy for accident risk rather than actual incident data.
+### Regression — Traffic Volume Prediction
 
-**Models evaluated:**
+| Model | MAE | R² |
+|-------|-----|-----|
+| LinearRegression | 831.87 | 0.7036 |
+| GradientBoostingRegressor | 273.68 | 0.9425 |
 
-| Model | Configuration |
-|---|---|
-| Logistic Regression | max_iter=1000, class_weight="balanced", StandardScaler preprocessing |
-| Random Forest | n_estimators=100, class_weight="balanced", no scaling needed |
-
-The dataset was split 80/20 with random_state=42. The `class_weight="balanced"` parameter was essential because the high-risk class is a minority (the label fires only when both congestion and weather conditions align).
-
-**Results and comparison:** Both models were evaluated on accuracy, precision, recall, F1-score, and ROC AUC. Random Forest outperformed Logistic Regression across all metrics, achieving a higher ROC AUC and substantially better recall for the minority high-risk class. The Random Forest's ability to model nonlinear interactions between weather severity and congestion proved critical for this task. Feature importance analysis from the Random Forest identified cloud cover, specific weather categories (Rain, Snow, Fog), and cyclical hour encodings as the strongest predictors -- consistent with the label's construction logic, which raises questions about whether the model is learning genuinely useful patterns or merely reverse-engineering the label formula.
-
-Confusion matrices were saved for both classifiers, showing that Logistic Regression produced more false negatives (missed high-risk events), while Random Forest achieved a better balance between precision and recall.
-
-### 1.3 Regression: Traffic Volume Prediction
-
-Two regression models predicted continuous traffic volume values.
-
-| Model | Configuration |
-|---|---|
-| Linear Regression | Default scikit-learn implementation |
-| Gradient Boosting Regressor | n_estimators=200, max_depth=5, learning_rate=0.1 |
-
-**Results:** Gradient Boosting substantially outperformed Linear Regression in both MAE and R-squared. The ensemble model captured interaction effects between time-of-day and weather that the linear model could not represent. Feature importance from Gradient Boosting identified hour (via cyclical encodings) and temperature as the top drivers of volume prediction, followed by cloud cover and precipitation features.
-
-Linear Regression served as a useful baseline but systematically underpredicted peak-hour volumes and overpredicted nighttime volumes, reflecting its inability to model the nonlinear relationship between time-of-day and traffic.
-
-### 1.4 Key Takeaways
-
-- Ensemble methods (Random Forest, Gradient Boosting) consistently outperformed linear baselines on this tabular dataset.
-- Cyclical time encodings and the weekend/holiday flags were effective engineered features.
-- The synthetic risk label's dependence on input features creates evaluation concerns that are addressed in the Responsible AI section.
-
----
+GradientBoosting achieves R² = 0.9425 and MAE = 273.68 vehicles/hour, substantially outperforming the linear baseline. Feature importance analysis shows hour-related features dominate, consistent with the Part 1 finding that traffic is primarily time-driven.
 
 ## 2. Unsupervised Machine Learning
 
-### 2.1 K-Means Clustering
+### K-Means Clustering (k=4)
 
-K-Means clustering was applied to four features: hour, temperature, traffic volume, and cloud cover. All features were normalized to [0, 1] using MinMaxScaler before clustering.
+| Cluster | Size | Mean Hour | Mean Temp (K) | Mean Volume | Mean Clouds |
+|---------|------|-----------|---------------|-------------|-------------|
+| 0 | 15,567 | 14.4 | 283.4 | 4,299 | 10.9 |
+| 1 | 6,825 | 3.3 | 277.8 | 930 | 85.0 |
+| 2 | 7,510 | 3.1 | 279.9 | 933 | 7.4 |
+| 3 | 10,673 | 15.7 | 275.4 | 4,153 | 86.0 |
 
-**Elbow method:** Inertia was computed for k=2 through k=8. The elbow plot showed a clear inflection at k=4, which was selected as the optimal cluster count.
+The clusters correspond to interpretable traffic regimes: daytime clear (cluster 0), overnight cloudy (1), overnight clear (2), and daytime overcast (3). The elbow method confirmed k=4 as optimal.
 
-**Cluster profiles (k=4):**
+### Association Rule Mining
 
-- **Cluster 0 -- Daytime moderate traffic:** Mid-day hours with moderate temperatures and traffic volumes, typical of off-peak weekday periods between the morning and evening rush.
-- **Cluster 1 -- Rush-hour high traffic:** Morning and evening peak hours with high traffic volumes, representing commute patterns. This cluster captures the bimodal daily traffic distribution.
-- **Cluster 2 -- Nighttime low traffic:** Late night and early morning hours (roughly 10 PM to 5 AM) with low volumes and variable temperatures.
-- **Cluster 3 -- Cold-weather patterns:** Observations with low temperatures (winter months), spanning various hours but with distinct traffic behavior influenced by seasonal conditions including reduced volumes during snow events.
+Top 5 rules by lift:
 
-A scatter plot of hour versus traffic volume, colored by cluster assignment, confirmed that the clusters are spatially coherent and align with domain knowledge about traffic patterns.
+| Rule | Support | Confidence | Lift |
+|------|---------|------------|------|
+| weekend + afternoon → High congestion + cloudy | 0.025 | 0.44 | 3.47 |
+| High congestion + cloudy → weekend + afternoon | 0.025 | 0.20 | 3.47 |
+| weekend + afternoon + clear → High congestion | 0.012 | 0.84 | 3.35 |
+| weekend + afternoon → High congestion | 0.050 | 0.83 | 3.33 |
+| Medium congestion + morning → weekend + cloudy | 0.019 | 0.45 | 3.27 |
 
-### 2.2 Association Rule Mining
-
-The Apriori algorithm was applied to discretized categorical features:
-- **Time of day:** Morning (6-12), afternoon (12-17), evening (17-21), night (21-6)
-- **Day type:** Weekday or weekend
-- **Weather:** Clear, cloudy (includes mist/haze/fog/smoke), rain (includes drizzle/thunderstorm), snow, or other
-- **Congestion:** Low, Medium, High, or Severe (based on traffic volume quartiles)
-
-**Configuration:** min_support=0.01, min_lift=1.0. Rules were ranked by lift.
-
-**Top findings:**
-- Weekend + night is strongly associated with low congestion (high lift), confirming expected patterns and providing quantitative confidence.
-- Weekday + morning/evening is associated with high and severe congestion, with lift values above 1.5.
-- Rain + weekday is associated with elevated congestion, suggesting weather compounds commute-driven demand.
-- Snow conditions showed strong lift with severe congestion when combined with weekday afternoon periods, though the support for these rules is low due to the relative rarity of snow events.
-
-These rules provide quantitative support for travel advisory recommendations and validate the domain understanding embedded in the feature engineering.
-
----
+These rules reveal that weekend afternoons are strongly associated with the "High" congestion category (lift > 3.3), and that this pattern holds across weather types.
 
 ## 3. Deep Learning and Explainability
 
-### 3.1 Neural Network Architecture
+A PyTorch feedforward neural network (128→64→32→1, ReLU, dropout 0.3/0.2) was trained for 50 epochs with early stopping.
 
-A feedforward neural network was built using TensorFlow/Keras for traffic volume regression:
+| Model | MAE | R² |
+|-------|-----|-----|
+| Neural Network (PyTorch) | 347.58 | 0.9227 |
+| GBR Surrogate | 273.33 | 0.9428 |
 
-- Input layer matching the feature dimensionality (10 base features plus one-hot weather columns)
-- Three hidden layers (128, 64, 32 neurons) with ReLU activation
-- Dropout layers for regularization to prevent overfitting
-- Output layer with a single linear unit for volume prediction
-- Adam optimizer with mean squared error loss
-- Early stopping callback monitoring validation loss
+SHAP was applied to a GradientBoostingRegressor surrogate rather than the neural network directly because: (1) neural nets are opaque — DeepExplainer/GradientExplainer can be unstable; (2) TreeExplainer provides exact Shapley values in polynomial time; (3) the GBR achieves comparable accuracy (R²=0.9428 vs 0.9227), so feature importance insights transfer.
 
-### 3.2 Performance Comparison
+**Top SHAP features:** hour_cos, hour_sin, and day_of_week cyclical encodings dominate — confirming that time-of-day is the primary traffic driver. Temperature and cloud cover have secondary effects. Weather one-hot features contribute marginally.
 
-The neural network achieved comparable R-squared and MAE to the Gradient Boosting Regressor. On this relatively small tabular dataset (~48,000 rows), deep learning did not provide a meaningful accuracy advantage over the ensemble method. This is consistent with the general finding in the machine learning literature that gradient boosting tends to match or outperform neural networks on structured tabular data unless the dataset is very large or contains complex sequential/spatial patterns.
+## 4. Advanced AI Technique: MLflow Experiment Tracking
 
-The neural network's training time was substantially longer than Gradient Boosting (minutes versus seconds), and it required more careful hyperparameter tuning (learning rate, layer sizes, dropout rate, early stopping patience).
+MLflow was selected because it connects naturally to the MLOps pipeline. Three models were tracked:
 
-### 3.3 SHAP Explainability
+| Model | MAE | R² |
+|-------|-----|-----|
+| RandomForestRegressor | 282.88 | 0.9376 |
+| GradientBoostingRegressor | 273.20 | 0.9428 |
+| PyTorchNeuralNet | 300.56 | 0.9348 |
 
-SHAP (SHapley Additive exPlanations) values were computed to provide feature attribution for the model predictions. Because neural networks lack an efficient native SHAP explainer, a TreeExplainer was applied to a Gradient Boosting surrogate model trained on the same feature set. Key findings from the SHAP analysis:
+**Why MLflow:** Reproducibility (exact parameters/metrics for every run), structured model comparison, artifact management (models stored with provenance), standardised API across frameworks.
 
-- **Hour-of-day features** (sine and cosine encodings) had the highest mean absolute SHAP values, confirming time as the dominant predictor.
-- **Temperature** contributed positively to volume predictions -- warmer temperatures correlate with higher traffic, likely reflecting seasonal effects and the influence of weather on travel decisions.
-- **Rain and snow weather categories** showed negative SHAP contributions, indicating the model learned that adverse weather suppresses traffic volume.
-- **Cloud cover** had a complex, nonlinear SHAP profile: moderate cloud cover had minimal effect, but very high cloud cover (often co-occurring with precipitation) reduced predicted volumes.
+**Limitations:** Adds I/O overhead, requires learning MLflow concepts, local file-backed store doesn't scale to teams, no Model Registry used here.
 
-The SHAP summary plot provides a visual explanation accessible to non-technical stakeholders, supporting model transparency and trust.
+## 5. Recommendation System
 
----
+The travel-timing recommender analyses historical traffic by hour, day type, and weather condition, restricted to realistic hours (06:00–22:00). Example output:
 
-## 4. Advanced AI: MLflow Experiment Tracking
+> "For a weekday journey in clear weather, consider travelling between 10:00 PM – 11:00 PM, when traffic is typically ~2,223 vehicles/hour, about 65% below the 4:00 PM peak."
 
-### 4.1 Experiment Setup
+Recommendations are grounded in historical averages from the cleaned dataset, not model predictions, because the averages are transparent and verifiable.
 
-MLflow was used to track all model training experiments systematically. For each model run, the following were logged:
+## 6. MLOps and Deployment Simulation
 
-- **Parameters:** All hyperparameters (n_estimators, max_depth, learning_rate, hidden layer sizes, dropout rates, etc.)
-- **Metrics:** R-squared and MAE for regression models; accuracy, precision, recall, F1, and ROC AUC for classifiers
-- **Artifacts:** Trained model files, feature importance plots, and confusion matrices
+**Model Versioning:** Documented in `reports/model_versions.md`. GradientBoostingRegressor (MAE=273.68, R²=0.9425) designated as production model.
 
-### 4.2 Benefits Realized
+**Deployment:** FastAPI app with `/predict` endpoint (accepts hour, day_of_week, temp, weather, etc., returns predicted volume and congestion level) and `/health` endpoint. Test script validates both endpoints.
 
-- **Side-by-side comparison:** MLflow's experiment UI enabled rapid comparison across all five models (Logistic Regression, Random Forest, Linear Regression, Gradient Boosting, Neural Network), making it straightforward to identify Gradient Boosting as the best regression model and Random Forest as the best classifier.
-- **Reproducibility:** Every configuration choice was recorded, eliminating ambiguity about which settings produced which results.
-- **Model registry readiness:** The best-performing models can be promoted from the experiment tracker to a model registry for deployment governance.
+**Monitoring:** Time-based drift detection trains on 2012–2017, treats 2018 as production data. Results:
+- Prediction error drift: holdout MAE=303.60, production MAE=283.04, change=−6.77% → **PASS**
+- Feature drift: temp (KS=0.1303, p≈0) → **ALERT**; clouds_all (KS=0.0858, p≈0) → **ALERT**; rain_1h → PASS; hour → PASS
 
-### 4.3 Limitations
+The temp and clouds_all alerts are expected: the 2018 data only covers Jan–Sep, so its seasonal distribution differs from training data that includes complete years. This would trigger a retraining review in a production system.
 
-MLflow adds infrastructure overhead. The file-based backend used in this project is suitable for individual work but would require migration to a database backend (PostgreSQL, MySQL) for team environments. The tracking server itself needs maintenance and monitoring in production settings.
+## 7. Responsible and Sustainable AI
 
----
+See `responsible_ai.md` for the full report. Key points:
 
-## 5. Recommendations: Travel Timing System
+- **Data limitations:** Single corridor (I-94 westbound), single direction, 10-month sensor gap (Aug 2014 – Jun 2015), no demographic or incident data.
+- **Proxy label risk:** The accident-risk label is synthetic and should not be used for real-world safety decisions. Classifier scores are inflated by circularity.
+- **Error distribution:** Regression errors vary by hour (higher MAE during rush hours due to greater variance) and by weather (rarer conditions have fewer training examples).
+- **Governance:** Human oversight required before deployment; regular retraining cadence; transparent model documentation.
+- **Sustainability:** GBR trains in ~6 seconds vs ~8 seconds for the neural net with comparable accuracy — tree models offer a better performance-to-compute ratio for this tabular dataset.
 
-Based on the clustering analysis, association rules, and regression model outputs, the following travel timing recommendations were developed:
+## 8. Integration
 
-- **Avoid weekday morning (7-9 AM) and evening (4-7 PM) travel** on this corridor when possible. These periods consistently fall in the high-congestion cluster and are associated with severe congestion in the rule analysis.
-- **Prefer mid-day (10 AM - 2 PM) or late evening (after 8 PM) windows** for non-time-sensitive trips. These periods fall in the moderate or low-traffic clusters, with volumes typically 40-50% below peak levels.
-- **Monitor weather forecasts before travel.** Rain and snow conditions compound congestion, particularly during peak hours. When adverse weather is forecast during a peak commute window, delaying travel by 1-2 hours can significantly reduce expected congestion.
-- **Weekend travel is generally unconstrained,** with low congestion across most hours except for mid-afternoon periods that may see moderate volumes.
-
-The FastAPI prediction endpoint operationalizes these recommendations: given current hour, day, and weather conditions, it returns a predicted volume and congestion level (low, moderate, high, very_high) that can be translated into a go/wait/delay advisory.
-
----
-
-## 6. MLOps: Deployment and Monitoring
-
-### 6.1 FastAPI Deployment
-
-The Gradient Boosting regression model was deployed as a REST API using FastAPI with the following architecture:
-
-- **`POST /predict`** accepts a JSON payload with hour, day_of_week, is_weekend, temp, rain_1h, snow_1h, clouds_all, and weather_main. Returns predicted traffic volume and a congestion classification based on historical quartile thresholds.
-- **`GET /health`** returns service status and model type for monitoring integration.
-- **Startup training:** The model trains during the FastAPI lifespan startup event, loading the dataset and fitting the GradientBoostingRegressor before serving requests.
-- **Input validation:** Pydantic models enforce type constraints and value ranges (e.g., hour 0-23, clouds_all 0-100), preventing malformed requests from reaching the model.
-- **Unknown weather handling:** The OneHotEncoder is configured with `handle_unknown="ignore"` to gracefully handle weather categories not seen during training.
-
-### 6.2 Monitoring Strategy
-
-For production deployment, the following monitoring capabilities are recommended:
-
-- **Prediction drift detection:** Track the distribution of predicted volumes over rolling windows and alert when it diverges from the training distribution using statistical tests (e.g., Kolmogorov-Smirnov).
-- **Input drift detection:** Monitor incoming feature distributions, especially weather category frequencies and temperature ranges, to detect when the model is extrapolating beyond its training domain.
-- **Latency and error rate monitoring:** Standard API observability (response time percentiles, HTTP error rates, request throughput).
-- **Periodic retraining triggers:** Automated retraining when prediction accuracy on recent labeled data falls below a defined threshold, or on a fixed quarterly schedule.
-
----
-
-## 7. Responsible AI
-
-A detailed bias, fairness, governance, and sustainability analysis is provided in `responsible_ai.md`. The key concerns are:
-
-- **Data scope:** The dataset covers a single corridor (I-94 westbound) over 2012-2018, limiting generalizability to other locations, time periods, or traffic types.
-- **Proxy label risk:** The `high_risk` label is synthetic, constructed from congestion and weather inputs rather than actual accident data. This creates circular reasoning in evaluation and may embed weather bias into risk predictions.
-- **Uneven error distribution:** Models likely perform worse during rare conditions (nighttime, snow, holidays) that have fewer training examples but are often the most consequential for safety.
-- **Governance requirements:** Deployment requires human-in-the-loop oversight, staged rollout with A/B testing against existing practices, domain expert validation, and regular retraining schedules.
-- **Sustainability:** Simpler ensemble models (Gradient Boosting, Random Forest) offer the best trade-off between accuracy, interpretability, and computational cost. Deep learning adds complexity without proportional accuracy gains on this tabular dataset.
-
----
-
-## 8. Conclusion
-
-This project demonstrated a complete machine learning lifecycle for traffic prediction and risk classification on the Metro Interstate Traffic Volume dataset:
-
-1. **Supervised learning** established that ensemble methods (Gradient Boosting, Random Forest) substantially outperform linear baselines, with Gradient Boosting achieving strong R-squared for volume prediction and Random Forest providing effective high-risk classification with balanced precision and recall.
-
-2. **Unsupervised learning** revealed four interpretable traffic clusters corresponding to distinct operational regimes (rush hour, daytime moderate, nighttime low, cold weather) and association rules that quantitatively confirm domain knowledge about congestion drivers.
-
-3. **Deep learning** provided comparable accuracy to gradient boosting but at higher computational cost, with SHAP analysis enabling transparent, stakeholder-friendly feature attribution.
-
-4. **MLflow experiment tracking** ensured all modeling decisions are reproducible, comparable, and auditable.
-
-5. **FastAPI deployment** delivered a production-ready prediction API with Pydantic input validation, health monitoring, and graceful handling of unknown inputs.
-
-6. **Responsible AI analysis** identified concrete limitations in the data and labeling methodology and established governance requirements for trustworthy deployment.
-
-**Primary recommendation:** Deploy the Gradient Boosting model via the FastAPI endpoint for travel advisory purposes, paired with the clustering-based recommendation system. The neural network should be reserved for future iterations where larger datasets or unstructured inputs (e.g., traffic camera imagery) justify its additional complexity. Any deployment must include the governance safeguards outlined in the responsible AI analysis, particularly the replacement of the synthetic risk label with ground-truth incident data from police reports, insurance claims, or 511 incident feeds.
+All components form a coherent pipeline: Part 2's cleaned data feeds Part 3's models. Supervised models provide the predictive foundation. Unsupervised learning reveals traffic regimes (4 clusters) and congestion patterns (association rules). SHAP explains what drives predictions (time features dominate). The recommendation system translates insights into actionable travel advice. MLflow tracks all experiments. FastAPI serves predictions. Monitoring validates deployment readiness and flags distribution drift. The responsible AI assessment provides the governance framework for trustworthy deployment.

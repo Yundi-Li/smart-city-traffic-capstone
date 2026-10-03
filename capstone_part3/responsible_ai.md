@@ -1,83 +1,66 @@
-# Responsible AI: Bias, Fairness, Governance, and Sustainability
+# Responsible and Sustainable AI Report
 
-## 1. Bias and Fairness Assessment
+## 1. Bias and Fairness
 
 ### 1.1 Sampling and Coverage Limitations
 
-The Metro Interstate Traffic Volume dataset covers a single corridor -- I-94 westbound between Minneapolis and St. Paul, Minnesota -- over the period 2012 to 2018 at hourly granularity. This narrow geographic and temporal scope introduces several bias concerns:
+The dataset covers a **single corridor** (I-94 westbound near Minneapolis–St Paul) in a **single direction**, from October 2012 to September 2018. Key gaps:
 
-- **Geographic bias.** Traffic patterns on a Midwestern US interstate corridor do not generalize to urban arterials, rural highways, or corridors in regions with different climate, infrastructure, or driving culture. Any model trained on this data would need substantial recalibration before deployment elsewhere.
-- **Temporal bias.** Six years of data captures some seasonal variation but may not reflect longer-term shifts in commuting behavior (e.g., post-pandemic remote work trends, infrastructure changes, or population growth). The dataset ends in 2018 and cannot account for behavioral changes after that year.
-- **Granularity bias.** Hourly aggregation smooths over sub-hourly traffic spikes and rapid weather transitions. Short-duration hazards such as flash flooding, sudden ice formation, or brief whiteout conditions may be averaged away, reducing the model's ability to detect acute risk windows.
-- **Directional bias.** Only westbound traffic is recorded. Eastbound conditions, which may differ significantly during morning versus evening commutes, are entirely absent.
+- **Sensor gap:** 2014-08-08 to 2015-06-11 (~10 months), leaving 2014 with only 4,501 hours and 2015 with 3,593 hours of data.
+- **Partial years:** 2012 starts in October (2,103 hours); 2018 ends in September (6,533 hours). No full calendar year of 2012 or 2018 data exists.
+- **Geographic scope:** Results apply to this specific corridor only. Traffic patterns on urban arterials, suburban roads, or other interstates would differ.
+- **No demographic data:** The dataset contains no information about driver demographics, trip purposes, or vehicle types. The model cannot assess whether its predictions affect different population groups unequally.
+- **No incident data:** Actual accident records were not available; the classification task uses a synthetic proxy label.
 
 ### 1.2 Proxy Label Risks
 
-The `high_risk` label used for classification is synthetic. It is constructed by combining high congestion (top two quartiles of traffic volume) with severe weather categories or low-visibility conditions (cloud cover above 80% plus fog, mist, haze, or smoke). This label is not derived from actual accident or incident records.
+The `high_risk` label is defined as `(congestion_category in [High, Severe]) AND (severe_weather OR is_low_visibility)`. This is a **proxy for risk, not a measurement of actual accidents**. Risks of using this proxy:
 
-Key risks arising from this design:
-
-- **Weather bias in the risk label.** Because severe weather is a direct input to the label, the model may learn to flag weather conditions rather than genuinely dangerous traffic states. Clear-sky accidents caused by driver fatigue, mechanical failure, or road design flaws will never appear as high-risk in this framing.
-- **Congestion as a proxy for danger.** High traffic volume does not always correspond to high accident risk. Stop-and-go traffic at low speeds may produce fewer severe accidents than moderate-volume traffic at highway speeds. Conversely, low-volume late-night driving can be disproportionately dangerous due to impaired or fatigued drivers, yet the model would classify it as low-risk.
-- **Circular reasoning.** Features used to construct the label (weather, cloud cover, traffic volume) are also model inputs. This inflates apparent model performance and makes evaluation metrics optimistically biased. The model is partly predicting its own label construction logic rather than an independent outcome.
+- **Circularity:** The label is derived from `traffic_volume` quartiles and `weather_main`, both of which are features in the model. This inflates classification metrics (ROC AUC 0.997, F1 0.952) far beyond what a real accident predictor would achieve.
+- **Incorrect assumptions:** High congestion during rain does not necessarily equal high accident risk — congestion may actually slow vehicles and reduce collision severity.
+- **Deployment danger:** If deployed as an "accident prediction system," it could create a false sense of safety during conditions it labels as low-risk (e.g., low-traffic icy roads at 3 AM).
 
 ### 1.3 Uneven Error Distribution
 
-Model performance is unlikely to be uniform across all conditions:
+The regression model (GradientBoosting, MAE=273.68) does not err uniformly:
 
-- **Nighttime and off-peak hours.** These periods have fewer observations and different traffic dynamics. Models trained predominantly on rush-hour data may produce higher error rates during low-traffic periods (midnight to 5 AM).
-- **Rare weather events.** Snow, thunderstorms, and fog are infrequent in the dataset relative to clear or cloudy conditions. One-hot encoded weather categories for rare events have limited training signal, leading to higher variance in predictions for those conditions -- precisely when accurate predictions matter most.
-- **Holiday and special event patterns.** Holidays represent a small fraction of observations but exhibit distinctly different traffic behavior. The binary `is_holiday` flag may not capture the diversity of holiday effects (e.g., Thanksgiving travel versus a local holiday with minimal traffic impact).
-- **Seasonal edge cases.** Spring thaw and early winter freeze-thaw cycles create road conditions not well captured by temperature and precipitation alone. The model lacks road surface condition data.
+- **By hour:** MAE is higher during rush hours (07:00–08:00, 16:00–17:00) where traffic variance is greatest. Overnight predictions (00:00–05:00) are more accurate because volumes are consistently low.
+- **By weather:** Rare weather conditions (Squall: ~5 records, Smoke: ~50 records) have fewer training examples. Model performance on these conditions is unreliable.
+- **By season:** The 2018 drift monitoring showed statistically significant distribution shifts in temperature (KS=0.1303, p≈0) and cloud cover (KS=0.0858, p≈0), indicating the model may perform differently across seasons.
 
-These disparities mean the system could systematically underserve the scenarios where traffic management decisions are most consequential.
+## 2. Governance
 
----
+### 2.1 Oversight Before Deployment
 
-## 2. Governance Framework for Deployment
+Before any model is trusted for real-world traffic management decisions:
 
-### 2.1 Human Oversight Requirements
+- **Human-in-the-loop:** Traffic engineers and domain experts must review model recommendations before they affect signal timing or advisory messages.
+- **A/B testing:** Any automated intervention (e.g., adaptive signal timing) should be tested in a controlled corridor before system-wide deployment.
+- **Regular retraining:** The drift monitoring detected feature distribution shifts between training (2012–2017) and production (2018) data. A quarterly retraining cadence with fresh data is recommended.
+- **Transparent documentation:** Model limitations (single corridor, proxy labels, uneven errors) must be clearly communicated to decision-makers. The model version registry (`reports/model_versions.md`) provides a starting point.
 
-Before any real-world deployment of these models for traffic management or traveler advisory purposes, the following governance safeguards should be established:
+### 2.2 Decision Boundaries
 
-- **Domain expert review.** Transportation engineers and meteorologists should validate model outputs against known traffic incident patterns. Model recommendations should be treated as decision-support inputs, not autonomous directives.
-- **Human-in-the-loop operation.** High-risk alerts generated by the classification model should be reviewed by traffic management center operators before triggering public advisories or infrastructure responses (e.g., variable speed limits, ramp metering changes).
-- **Staged deployment with A/B testing.** The system should be introduced alongside existing traffic management practices, with controlled comparison to measure whether model-informed decisions improve outcomes (accident reduction, travel time reliability) relative to the status quo.
-- **Regular retraining cadence.** Models should be retrained at least quarterly on recent data to capture evolving traffic patterns, infrastructure changes, and updated weather data. Concept drift monitoring (tracking prediction error trends over time) should trigger ad-hoc retraining when performance degrades.
+The model should inform but not replace human judgment. Specific boundaries:
 
-### 2.2 Validation Against Ground Truth
+- Traffic volume predictions can safely drive advisory systems ("expect heavy traffic between 4-5 PM").
+- The proxy accident-risk classifier should **never** be used for safety-critical decisions without validation against real incident data.
+- Recommendations should be presented with confidence context ("based on 3,500 historical observations for this condition").
 
-The synthetic risk label should eventually be replaced or supplemented with actual incident data (police reports, insurance claims, 511 incident feeds). Until that validation occurs, the model should be clearly labeled as estimating "congestion-weather risk" rather than "accident risk" to avoid misleading stakeholders.
+## 3. Sustainability
 
-### 2.3 Accountability and Documentation
+### 3.1 Computational Trade-offs
 
-- A model card documenting training data scope, known limitations, and intended use should accompany any deployment.
-- Decision logs should record when and how model outputs influenced traffic management actions.
-- An escalation path should exist for operators to override model recommendations.
+| Model | Training Time | MAE | R² |
+|-------|--------------|-----|-----|
+| GradientBoostingRegressor | ~6 seconds | 273.68 | 0.9425 |
+| RandomForestRegressor | ~3 seconds | 282.88 | 0.9376 |
+| PyTorch Neural Net | ~8 seconds | 347.58 | 0.9227 |
 
----
+For this tabular dataset, tree-based models outperform the neural network while training faster. The neural network adds complexity and compute cost without improving accuracy. In a production setting, the GradientBoostingRegressor offers the best performance-to-compute ratio.
 
-## 3. Sustainability and Environmental Trade-offs
+### 3.2 Environmental Considerations
 
-### 3.1 Computational Cost of Model Complexity
-
-This project compared models ranging from logistic regression and linear regression (minimal compute) to gradient boosting (moderate) and deep neural networks with SHAP explainability (substantial). Key sustainability considerations:
-
-- **Training cost.** The TensorFlow neural network requires significantly more compute than scikit-learn models. For a dataset of roughly 48,000 records, the difference in wall-clock time is modest (seconds versus minutes on a modern CPU). However, at production scale with larger datasets and hyperparameter search, deep learning costs grow substantially.
-- **SHAP explainability overhead.** Computing SHAP values for neural networks is computationally expensive -- often more so than training the model itself. For ongoing monitoring and auditing, this cost recurs with each explanation request.
-- **Inference cost.** The FastAPI deployment serves predictions via GradientBoostingRegressor, which has fast inference. A neural network alternative would require more memory and compute per request, increasing operational energy consumption for marginal accuracy gains.
-- **Carbon footprint.** For a single-corridor advisory system, the environmental cost of any of these models is negligible. However, the principle matters: if the approach were scaled to hundreds of corridors nationwide, choosing a model that is 10x more expensive to run without proportional accuracy improvement would represent an unjustifiable environmental cost.
-
-### 3.2 Is Complexity Justified?
-
-Based on the results observed in this project:
-
-- Gradient boosting achieved strong regression performance (high R-squared, low MAE) without the complexity of deep learning.
-- Random forest classification performed well on the high-risk label with interpretable feature importances.
-- The neural network provides marginal improvement at best, given the relatively small and tabular nature of the dataset.
-
-For this use case, the simpler ensemble models (gradient boosting, random forest) offer the best trade-off between predictive performance, interpretability, and computational efficiency. Deep learning is better reserved for scenarios with much larger datasets, unstructured inputs (e.g., traffic camera imagery), or complex temporal dependencies requiring sequence models.
-
-### 3.3 Broader Environmental Impact
-
-If deployed effectively, a traffic advisory system could reduce congestion-related idling and encourage off-peak travel, producing net positive environmental outcomes (reduced fuel consumption and emissions) that outweigh the modest compute costs of model training and serving. This positive externality is the strongest sustainability argument for the project, provided the model's recommendations are accurate enough to genuinely shift travel behavior.
+- The dataset is small (40,575 rows) and all models train in under 10 seconds on a consumer laptop. The carbon footprint of training is negligible.
+- However, if scaled to a city-wide system with real-time predictions across hundreds of corridors, compute costs would grow substantially. Cloud GPU instances for neural network inference would have measurable energy costs.
+- **Recommendation:** Use the simpler GradientBoosting model for deployment. Reserve neural networks for cases where their additional complexity is justified by performance gains — which is not the case for this tabular traffic dataset.
