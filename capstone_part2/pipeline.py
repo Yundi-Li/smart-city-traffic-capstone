@@ -84,25 +84,68 @@ def parse_datetime(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+WEATHER_SEVERITY_ORDER = {
+    "Clear": 0, "Clouds": 1, "Mist": 2, "Haze": 2, "Drizzle": 2,
+    "Rain": 3, "Fog": 3, "Snow": 4, "Thunderstorm": 4, "Squall": 4, "Smoke": 4,
+}
+
+
 def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
-    """Remove exact duplicate rows and deduplicate by timestamp."""
-    # Step 1: exact duplicates
+    """Remove exact duplicates, then aggregate repeated timestamps."""
+    rows_before = len(df)
+
+    # Step 1: exact duplicates (identical across all columns)
     exact_dup_count = df.duplicated().sum()
     if exact_dup_count > 0:
         logger.warning("Removing %d exact duplicate rows", exact_dup_count)
         df = df.drop_duplicates().reset_index(drop=True)
-    else:
-        logger.info("No exact duplicate rows found")
 
-    # Step 2: duplicate timestamps - keep first occurrence
-    ts_dup_mask = df.duplicated(subset=["date_time"], keep="first")
-    ts_dup_count = ts_dup_mask.sum()
-    if ts_dup_count > 0:
+    # Step 2: aggregate rows sharing the same date_time
+    ts_counts = df.groupby("date_time").size()
+    multi_ts = (ts_counts > 1).sum()
+    extra_rows = ts_counts[ts_counts > 1].sum() - multi_ts
+
+    if extra_rows > 0:
+        # Verify that traffic_volume and holiday are consistent within each hour
+        tv_nunique = df.groupby("date_time")["traffic_volume"].nunique()
+        inconsistent_tv = (tv_nunique > 1).sum()
+        if inconsistent_tv > 0:
+            logger.warning("%d timestamps have inconsistent traffic_volume values", inconsistent_tv)
+
+        # For each timestamp: keep one traffic_volume (they should be identical),
+        # take the most severe weather condition, join descriptions, average numerics
+        df["weather_severity"] = df["weather_main"].map(WEATHER_SEVERITY_ORDER).fillna(2)
+
+        def _agg_timestamp(group):
+            row = {}
+            row["holiday"] = group["holiday"].iloc[0]
+            row["temp"] = group["temp"].mean()
+            row["rain_1h"] = group["rain_1h"].mean()
+            row["snow_1h"] = group["snow_1h"].mean()
+            row["clouds_all"] = group["clouds_all"].mean()
+            # Most severe weather condition
+            most_severe_idx = group["weather_severity"].idxmax()
+            row["weather_main"] = group.loc[most_severe_idx, "weather_main"]
+            row["weather_description"] = "; ".join(group["weather_description"].unique())
+            row["traffic_volume"] = group["traffic_volume"].iloc[0]
+            row["n_weather_conditions"] = len(group)
+            return pd.Series(row)
+
+        df = df.groupby("date_time", as_index=False).apply(_agg_timestamp, include_groups=False)
+        df = df.reset_index(drop=True)
+        df["date_time"] = pd.to_datetime(df["date_time"])
+
         logger.warning(
-            "Removing %d rows with duplicate date_time values (keeping first occurrence)",
-            ts_dup_count,
+            "Aggregated %d timestamps that appeared more than once, "
+            "removing %d extra rows (kept most severe weather per hour). "
+            "Reason: dataset has multiple weather readings per hour; "
+            "traffic_volume is the same within each hour",
+            multi_ts, rows_before - exact_dup_count - len(df),
         )
-        df = df[~ts_dup_mask].reset_index(drop=True)
+
+        # Clean up helper column
+        if "weather_severity" in df.columns:
+            df = df.drop(columns=["weather_severity"])
 
     return df
 
