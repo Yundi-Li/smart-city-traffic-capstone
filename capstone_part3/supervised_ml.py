@@ -272,7 +272,7 @@ def _save_feature_importance(model, feature_names: list[str], task: str) -> None
 
 
 def print_classification_results(results: dict) -> None:
-    """Print a comparison table for classification models."""
+    """Print a comparison table for classification models (user-facing output)."""
     header = f"{'Model':<25} {'Accuracy':>10} {'Precision':>10} {'Recall':>10} {'F1':>10} {'ROC AUC':>10}"
     print("\n" + "=" * 80)
     print("CLASSIFICATION RESULTS — High-Risk Prediction")
