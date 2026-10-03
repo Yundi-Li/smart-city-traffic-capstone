@@ -1,62 +1,81 @@
-# Smart City Traffic Analysis — Part 1 Insights Report
+# Part 1 — Data Analytics Insights Report
 
-**Dataset:** Metro Interstate Traffic Volume (I-94 Westbound, Minneapolis-St. Paul)
-**Period:** October 2012 – September 2018 | ~48,204 hourly observations
-**Prepared for:** Smart City Mobility Team
+## 1. SQL-Based Traffic Analysis
 
----
+### Annual Trends (Task 1.2)
 
-## 1. SQL Analysis Findings
+The dataset contains 48,204 raw rows spanning October 2012 to September 2018, but coverage is uneven. After deduplicating timestamps (the dataset contains 5,445 duplicate timestamp entries with different weather readings), the unique hourly records per year are: 2012: 2,103 (partial, starts Oct 2); 2013: 7,294; 2014: 4,501; 2015: 3,593; 2016: 7,838; 2017: 8,713. A major sensor gap runs from 2014-08-08 01:00 to 2015-06-11 20:00 (~10 months), which makes raw yearly totals misleading.
 
-### Annual Traffic Trends (2012–2017)
+When normalised to average volume per hour, traffic demand is stable across years: 3,227 (2012), 3,310 (2013), 3,270 (2014), 3,258 (2015), 3,194 (2016), 3,377 (2017). The largest year-on-year change is +5.73% from 2016 to 2017. This means historical hourly averages from any complete year are a valid planning baseline, as long as the 2014–15 gap is excluded.
 
-Average hourly traffic volume shows a general upward trend across the study period, consistent with regional population and economic growth in the Twin Cities metro area. Year-over-year changes are not uniform: early years (2012–2013) may reflect partial data collection windows that skew annual averages, while later years with full 12-month coverage provide more reliable baselines.
+### Holiday Temperature Patterns (Task 1.3)
 
-**Key takeaway:** Traffic demand on the I-94 corridor is growing. Infrastructure and signal-timing plans should account for continued volume increases rather than assuming stationarity.
+After retrieving all hourly rows on each holiday date (not just the midnight row where the holiday label appears):
 
-### Holiday Temperature Patterns (2015–2017)
+- **Labor Day** temperatures are consistently warm: 22.17°C (2015), 21.86°C (2016), 18.14°C (2017). Average traffic ranges from 2,152 to 2,430 vehicles/hour across 24-hour periods.
+- **New Year's Day** temperatures are sub-zero: −6.06°C (2016), −1.30°C (2017). Average traffic is 1,832–2,091 vehicles/hour. New Year's Day 2015 has no data due to the sensor gap. In 2017, the federal holiday was observed on 2 January because 1 January fell on a Sunday.
 
-New Year's Day observations show temperatures around 260–270 K (-13 to -3 °C) with lower traffic volumes, while Labor Day readings cluster near 295–300 K (22–27 °C) with notably higher volumes. The seasonal contrast in both temperature and traffic is stark, confirming that holiday-period planning must account for weather-driven behavioral differences — not just the holiday itself.
+Labor Day consistently shows higher average traffic than New Year's Day, reflecting both warmer weather and the holiday travel pattern.
 
----
+## 2. Descriptive Statistics (Task 2.1)
 
-## 2. Descriptive Statistics
+Traffic volume statistics across all 48,204 hourly observations:
 
-Traffic volume exhibits high variability (standard deviation exceeding 1,900 vehicles/hour) and a wide range from near-zero overnight readings to over 7,000 during peak hours. The mean exceeds the median, indicating right-skewness: most hours see moderate traffic, but peak-hour surges pull the average upward.
+| Statistic | Value |
+|-----------|-------|
+| Mean | 3,259.82 vehicles/hour |
+| Median | 3,380.00 vehicles/hour |
+| Std Dev | 1,986.86 |
+| Variance | 3,947,615.32 |
+| Range | 7,280 (0 to 7,280) |
 
-**Implication:** Average-based capacity models will systematically underestimate peak demand. The mobility team should use percentile-based thresholds (e.g., 85th or 95th percentile volumes) for infrastructure sizing and congestion trigger definitions.
+The mean (3,260) is lower than the median (3,380), indicating a left-skewed distribution. This occurs because the data is bimodal: daytime hours cluster around 4,000–6,000 vehicles/hour, while overnight hours (roughly 22:00–05:00) regularly drop below 1,000. The large number of low-volume overnight hours pulls the mean below the median. The standard deviation of 1,987 (61% of the mean) reflects this wide day–night spread and is important for capacity planning — average-based models will substantially under-predict peak demand.
 
----
+## 3. Correlation Analysis (Task 2.2)
 
-## 3. Correlation Analysis
+The Pearson correlation between temperature and traffic volume is r = 0.1303, a weak positive relationship. The direction (positive) is plausible: warmer temperatures in Minnesota are associated with somewhat higher traffic, likely because severe cold discourages travel.
 
-The Pearson correlation between temperature and traffic volume is positive but moderate in strength. Warmer conditions are associated with higher volumes, which aligns with the expectation that Minnesota's cold winters suppress discretionary travel.
+However, correlation does not imply causation. The relationship is likely confounded by seasonality: summer months bring both warmer temperatures and more travel due to vacations, longer daylight, and outdoor activities. Time of day is another confounder — temperature peaks in early afternoon, which overlaps with higher-traffic daytime hours. A regression model with seasonal and time-of-day controls would be needed to isolate any independent temperature effect.
 
-However, this correlation is largely driven by seasonality — summer brings both warm weather and peak travel demand (vacations, events, longer days). Temperature alone should not be used as a causal predictor of traffic volume without controlling for time-of-year, day-of-week, and event schedules.
+## 4. Probability Analysis (Task 3)
 
----
+Defining congestion as traffic volume > 5,500 vehicles/hour:
 
-## 4. Probability Analysis
+| Probability | Value |
+|-------------|-------|
+| P(Congestion) | 0.1473 (14.73%) |
+| P(Clear Weather) | 0.2778 (27.78%) |
+| P(Congestion ∩ Clear Weather) | 0.0366 (3.66%) |
+| P(Clear Weather \| Congestion) | 0.2483 (24.83%) |
+| P(High Temp > 292K \| Congestion) | 0.2630 (26.30%) |
 
-- **Congestion probability** (volume > 5,500): Roughly one-quarter to one-third of observed hours meet this threshold, indicating that congestion is a frequent rather than exceptional event.
-- **Clear weather** accounts for a meaningful share of all observations. The joint probability of congestion during clear weather, compared to the product of the marginal probabilities, indicates that these events are not fully independent — weather conditions do shift congestion risk.
-- **Odds ratio** analysis comparing clear versus cloudy conditions shows that congestion likelihood varies by weather type, providing an empirical basis for weather-responsive traffic management.
-- **Conditional probability of high temperature given congestion** is elevated, reinforcing the seasonal pattern: congestion clusters in warmer months.
+**Independence test:** P(Congestion) × P(Clear) = 0.0409, while P(Congestion ∩ Clear) = 0.0366. The difference is 0.0043 — small but not zero. Congestion and clear weather are approximately independent, meaning weather type alone does not strongly predict whether congestion occurs.
 
----
+**Odds ratio (clear vs cloudy):** In clear weather, 1,763 out of 13,391 hours are congested (odds = 0.152). In cloudy weather, 2,592 out of 15,164 hours are congested (odds = 0.206). The odds ratio is 0.74, meaning congestion is 1.36× more likely in cloudy weather than in clear weather. While statistically detectable, this is a modest effect — time of day and day of week are far stronger congestion drivers.
 
-## 5. Synthesis and Recommendations
+## 5. Dashboard Analysis (Task 4)
 
-1. **Capacity planning should be percentile-driven.** The high variance and skewness of traffic volume mean that average-based planning will fail during the hours that matter most. Use the 85th–95th percentile as the design target.
+An interactive HTML dashboard (`dashboard.py` / `traffic_dashboard.html`) was built using Plotly as an alternative to Power BI Desktop, which is not available on macOS. The dashboard covers all required analytical views:
 
-2. **Seasonal staffing and signal timing.** The strong seasonal pattern — warmer months drive both higher volumes and higher congestion probability — justifies differentiated traffic management strategies by season, not just by time of day.
+- **Daily traffic trends** for 2015, 2016, and 2017 (line chart, one line per year)
+- **Hourly traffic patterns** for 2017 (bar chart showing average traffic by hour)
+- **Weather impact analysis:** Clouds has the highest average traffic (3,617 vehicles/hour); Squall has the lowest (420). The difference is 3,197 vehicles/hour. Excluding the rare Squall condition (only a handful of observations), Fog has the lowest average among common conditions at 2,724 vehicles/hour.
+- **Temperature vs traffic scatter plot** coloured by weather condition
+- **KPI cards:** total hours analysed (48,204), average traffic volume, average temperature
+- **Weather condition dropdown filter** for interactivity
 
-3. **Weather-responsive operations have empirical support.** The dependence between weather type and congestion, quantified by the odds ratio, means that integrating real-time weather feeds into adaptive signal control and route-guidance systems can improve congestion prediction accuracy.
+Note: A Power BI Desktop `.pbix` file was not produced as Power BI Desktop is Windows-only.
 
-4. **Holiday-specific planning.** New Year's Day and Labor Day differ dramatically in both temperature and traffic behavior. Event-based traffic plans should be calibrated to the specific holiday, not applied uniformly.
+## 6. Synthesis and Recommendations
 
-5. **Data quality note.** The dataset spans partial years at the boundaries (2012 and 2018). Annual comparisons should weight full-year periods more heavily, and any trend extrapolation should acknowledge the uneven observation windows.
+Combining findings from SQL, statistics, probability, and dashboard analysis, the key insights for the Smart City Mobility Analytics Team are:
 
----
+1. **Traffic demand is time-driven, not weather-driven.** The weak temperature–traffic correlation (r = 0.13) and the near-independence of congestion and weather type (odds ratio 0.74) confirm that hour of day and day of week are the dominant factors. Traffic management systems should prioritise time-based signal optimisation over weather-reactive strategies.
 
-*This report summarizes Part 1 analysis outputs. Further work (Part 2) will apply visualization dashboards and predictive modeling to deepen these findings.*
+2. **Congestion is concentrated in predictable windows.** Only 14.7% of hours exceed the 5,500-vehicle congestion threshold, and these cluster in weekday morning (07:00–08:00) and afternoon (16:00–17:00) rush periods. Targeted interventions during these 2–3 hour windows would address most congestion.
+
+3. **Data coverage matters for any longitudinal analysis.** The 10-month sensor gap (Aug 2014 – Jun 2015) and uneven yearly coverage mean raw yearly totals are unreliable. Any trend analysis must normalise by hours of data. The coverage-adjusted averages (3,194–3,377 vehicles/hour) show demand was flat across the study period.
+
+4. **Holiday traffic follows predictable patterns.** Labor Day averages 2,152–2,430 vehicles/hour (below normal weekday levels), while New Year's Day averages 1,832–2,091. Holiday-specific traffic management can use these baselines for resource planning.
+
+5. **Cloudy conditions carry slightly elevated congestion risk.** The 1.36× higher odds of congestion during cloudy weather, while modest, could inform a secondary weather-aware layer in traffic management — for example, slightly extending green-light phases on cloudy weekday afternoons.
