@@ -95,7 +95,11 @@ def _evaluate(y_true, y_pred):
     return {"mae": mean_absolute_error(y_true, y_pred), "r2": r2_score(y_true, y_pred)}
 
 
-def train_sklearn_model(model, model_name, X_train, X_test, y_train, y_test, params):
+REGISTERED_MODEL_NAME = "traffic_volume_regressor"
+
+
+def train_sklearn_model(model, model_name, X_train, X_test, y_train, y_test, params,
+                        register_as=None, alias=None):
     with mlflow.start_run(run_name=model_name):
         for key, value in params.items():
             mlflow.log_param(key, value)
@@ -105,9 +109,27 @@ def train_sklearn_model(model, model_name, X_train, X_test, y_train, y_test, par
         metrics = _evaluate(y_test, y_pred)
         for k, v in metrics.items():
             mlflow.log_metric(k, v)
-        mlflow.sklearn.log_model(model, artifact_path="model",
-                                 skops_trusted_types=["sklearn.tree._tree.Tree",
-                                                      "numpy.float64", "numpy.int64"])
+
+        if register_as:
+            model_info = mlflow.sklearn.log_model(
+                model, artifact_path="model",
+                registered_model_name=register_as,
+                skops_trusted_types=["sklearn.tree._tree.Tree",
+                                     "numpy.float64", "numpy.int64"],
+            )
+            logger.info("Registered %s as %s version %s",
+                        model_name, register_as, model_info.registered_model_version)
+            if alias:
+                client = mlflow.tracking.MlflowClient()
+                client.set_registered_model_alias(
+                    register_as, alias, model_info.registered_model_version
+                )
+                logger.info("Set alias '%s' on version %s", alias, model_info.registered_model_version)
+        else:
+            mlflow.sklearn.log_model(model, artifact_path="model",
+                                     skops_trusted_types=["sklearn.tree._tree.Tree",
+                                                          "numpy.float64", "numpy.int64"])
+
         logger.info("%s - MAE: %.2f, R2: %.4f", model_name, metrics["mae"], metrics["r2"])
     return metrics
 
@@ -205,13 +227,15 @@ def main():
     rf_params = {"n_estimators": 200, "max_depth": 15, "min_samples_split": 5, "random_state": 42}
     results["RandomForestRegressor"] = train_sklearn_model(
         RandomForestRegressor(**rf_params), "RandomForestRegressor",
-        X_train, X_test, y_train, y_test, rf_params)
+        X_train, X_test, y_train, y_test, rf_params,
+        register_as=REGISTERED_MODEL_NAME)
 
     gb_params = {"n_estimators": 200, "max_depth": 5, "learning_rate": 0.1,
                  "min_samples_split": 5, "random_state": 42}
     results["GradientBoostingRegressor"] = train_sklearn_model(
         GradientBoostingRegressor(**gb_params), "GradientBoostingRegressor",
-        X_train, X_test, y_train, y_test, gb_params)
+        X_train, X_test, y_train, y_test, gb_params,
+        register_as=REGISTERED_MODEL_NAME, alias="production")
 
     nn_params = {"epochs": 50, "batch_size": 64, "optimizer": "adam",
                  "hidden_layers": "64-32", "activation": "relu"}
