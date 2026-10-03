@@ -42,7 +42,7 @@ def get_feature_columns(df: pd.DataFrame) -> list:
         "temp", "rain_1h", "snow_1h", "clouds_all",
     ]
     weather_ohe = [c for c in df.columns if c.startswith("weather_")
-                   and c not in ("weather_main", "weather_description")]
+                   and c not in ("weather_main", "weather_description", "weather_severity")]
     return [c for c in base + weather_ohe if c in df.columns]
 
 

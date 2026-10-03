@@ -2,20 +2,20 @@
 MODEL MONITORING REPORT
 ============================================================
 
-Training period:    2012-2017
+Training period:    2012-2016
 Production period:  2018 (6533 records)
 
 --- Prediction Error Drift ---
-  Holdout MAE (2012-2017): 303.60
-  Production MAE (2018):   283.04
-  Change:                  -6.77%
-  Status:                  [PASS]
+  Holdout MAE (2016):        385.54
+  Production MAE (2018):     247.87
+  Change:                    -35.71%
+  Status:                    [ALERT]
 
 --- Feature Distribution Drift (KS Test: train vs 2018) ---
-  temp                  KS=0.1303  p=0.0000  [ALERT]
-  clouds_all            KS=0.0858  p=0.0000  [ALERT]
-  rain_1h               KS=0.0129  p=0.3229  [PASS]
-  hour                  KS=0.0031  p=1.0000  [PASS]
+  temp                  KS=0.1251  p=0.0000  [ALERT]
+  clouds_all            KS=0.1006  p=0.0000  [ALERT]
+  rain_1h               KS=0.0145  p=0.2237  [PASS]
+  hour                  KS=0.0038  p=1.0000  [PASS]
 
 --- OVERALL SYSTEM STATUS ---
   ALERT / Requires investigation
