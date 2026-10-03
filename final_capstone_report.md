@@ -47,7 +47,7 @@ Defining congestion as traffic volume > 5,500 vehicles/hour:
 
 ### 1.4 Dashboard
 
-An interactive HTML dashboard was built using Plotly as a macOS-compatible alternative to Power BI Desktop. It includes daily traffic trends, hourly patterns, weather impact analysis, temperature--traffic scatter plots, KPI cards, and a weather condition filter. Clouds has the highest average traffic (3,617 vehicles/hour); Squall has the lowest (420).
+An interactive HTML dashboard was built using Plotly. It includes daily traffic trends, hourly patterns, weather impact analysis, temperature--traffic scatter plots, KPI cards, and a weather condition filter. Clouds has the highest average traffic (3,617 vehicles/hour); Squall has the lowest (420).
 
 ---
 

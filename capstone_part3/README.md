@@ -81,7 +81,7 @@ Then open http://localhost:5000 to browse experiments, compare runs, and inspect
 
 ## Supplementary Dashboard
 
-`dashboard.py` generates `traffic_dashboard.html`, a supplementary interactive Plotly dashboard for exploring traffic patterns. It is not a Power BI replacement.
+`dashboard.py` generates `traffic_dashboard.html`, an interactive Plotly dashboard for exploring traffic patterns.
 
 ## Portability Note
 

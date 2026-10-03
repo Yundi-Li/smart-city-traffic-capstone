@@ -64,7 +64,7 @@ Defining congestion as traffic volume > 5,500 vehicles/hour:
 
 ## 5. Dashboard Analysis (Task 4)
 
-An interactive HTML dashboard (`dashboard.py` / `traffic_dashboard.html`) was built using Plotly as an alternative to Power BI Desktop, which is not available on macOS. The dashboard covers all required analytical views:
+An interactive HTML dashboard (`dashboard.py` / `traffic_dashboard.html`) was built using Plotly. The dashboard covers all required analytical views:
 
 - **Daily traffic trends** for 2015, 2016, and 2017 (line chart, one line per year)
 - **Hourly traffic patterns** for 2017 (bar chart showing average traffic by hour)
@@ -73,7 +73,6 @@ An interactive HTML dashboard (`dashboard.py` / `traffic_dashboard.html`) was bu
 - **KPI cards:** total hours analysed (48,204), average traffic volume, average temperature
 - **Weather condition dropdown filter** for interactivity
 
-Note: A Power BI Desktop `.pbix` file was not produced as Power BI Desktop is Windows-only.
 
 ## 6. Synthesis and Recommendations
 

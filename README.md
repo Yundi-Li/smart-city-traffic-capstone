@@ -128,13 +128,13 @@ Metro Interstate Traffic Volume dataset from Kaggle. ~48,204 raw hourly records 
 
 ## Mapping to Suggested Structure
 
-Folder names follow the deliverable wording in the capstone instructions (`capstone_part1/`, `capstone_part2/`, `capstone_part3/`) rather than the suggested structure names. Power BI was not completed; the HTML dashboard is supplementary.
+Folder names follow the deliverable wording in the capstone instructions (`capstone_part1/`, `capstone_part2/`, `capstone_part3/`) rather than the suggested structure names.
 
 | Suggested Item | Location in This Repo |
 |---|---|
 | part1_data_analytics/sql | capstone_part1/sql_analysis.py, queries.sql, traffic.db |
 | part1_data_analytics/statistics | capstone_part1/statistics_probability.py |
-| part1_data_analytics/power_bi | Not completed (Power BI Desktop is Windows-only); supplementary HTML dashboard: capstone_part1/dashboard.py, traffic_dashboard.html |
+| part1_data_analytics/dashboard | capstone_part1/dashboard.py, traffic_dashboard.html (interactive traffic dashboard) |
 | part1_data_analytics/report | capstone_part1/insights_report.md |
 | part2_python/pipeline | capstone_part2/pipeline.py |
 | part2_python/feature_engineering | capstone_part2/feature_engineering.py |

@@ -2,7 +2,7 @@
 Interactive Traffic Dashboard Generator
 
 Generates a self-contained HTML dashboard from the Metro Interstate Traffic Volume dataset
-using Plotly. Satisfies the Power BI rubric requirements for the capstone project.
+using Plotly for the capstone project.
 """
 
 import logging

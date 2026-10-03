@@ -11,7 +11,7 @@
 | LinearRegression | 826.36 | 0.7105 | v1 |
 | GradientBoostingRegressor | 246.80 | 0.9593 | v2 (production) |
 | RandomForestRegressor | 251.25 | 0.9550 | — |
-| PyTorchNeuralNet | 345.85 | 0.9385 | — |
+| PyTorchNeuralNet | 312.16 | 0.9466 | — |
 
 ## Classification Runs
 
