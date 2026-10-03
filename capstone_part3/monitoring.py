@@ -186,61 +186,117 @@ def save_drift_visualization(
 
 
 def run_monitoring() -> None:
-    """Execute the full monitoring pipeline."""
-    # Paths relative to project root
+    """Execute time-based drift monitoring.
+
+    Training period: 2012–2017. Production period: 2018.
+    This simulates real deployment where a model trained on historical data
+    encounters new data over time.
+    """
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     data_path = os.path.join(base_dir, "capstone_part2", "cleaned_traffic.csv")
     report_path = os.path.join(base_dir, "capstone_part3", "reports", "monitoring_report.txt")
     figure_path = os.path.join(base_dir, "figures", "monitoring_drift.png")
 
-    # 1. Load and engineer features
     df = load_and_engineer_features(data_path)
     feature_cols = get_feature_columns(df)
 
-    X = df[feature_cols]
-    y = df["traffic_volume"]
+    # Time-based split: train on 2012-2017, treat 2018 as production
+    train_mask = df["date_time"].dt.year <= 2017
+    prod_mask = df["date_time"].dt.year == 2018
+    df_train = df[train_mask].copy()
+    df_prod = df[prod_mask].copy()
 
-    # 2. Train/test split (80/20, random_state=42)
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
+    logger.info("Training period: 2012-2017 (%d rows)", len(df_train))
+    logger.info("Production period: 2018 (%d rows)", len(df_prod))
+
+    if len(df_prod) == 0:
+        logger.error("No 2018 data found for production monitoring")
+        return
+
+    X_train = df_train[feature_cols]
+    y_train = df_train["traffic_volume"]
+    X_prod = df_prod[feature_cols]
+    y_prod = df_prod["traffic_volume"]
+
+    # Train model and get holdout MAE from training period
+    from sklearn.model_selection import train_test_split as tts
+    X_tr, X_holdout, y_tr, y_holdout = tts(
+        X_train, y_train, test_size=0.2, random_state=42
     )
+    model = train_model(X_tr, y_tr)
 
-    # 3. Train model
-    model = train_model(X_train, y_train)
+    holdout_pred = model.predict(X_holdout)
+    holdout_mae = np.abs(y_holdout.values - holdout_pred).mean()
 
-    # 4. Generate predictions on holdout set (keep chronological order for drift)
-    #    Re-sort test set by original index to preserve chronological order
-    test_idx_sorted = X_test.index.sort_values()
-    X_test_sorted = X_test.loc[test_idx_sorted]
-    y_test_sorted = y_test.loc[test_idx_sorted]
+    prod_pred = model.predict(X_prod)
+    prod_mae = np.abs(y_prod.values - prod_pred).mean()
 
-    y_pred = model.predict(X_test_sorted)
+    pct_change = (prod_mae - holdout_mae) / holdout_mae if holdout_mae > 0 else 0
+    drift_status = "ALERT" if abs(pct_change) > 0.20 else "PASS"
 
-    # 5. Prediction error drift check
-    error_drift = check_prediction_error_drift(
-        y_test_sorted.values, y_pred, threshold=0.20
-    )
+    if drift_status == "ALERT":
+        logger.warning(
+            "Prediction error drift detected: holdout MAE=%.2f, production MAE=%.2f, change=%+.1f%%",
+            holdout_mae, prod_mae, pct_change * 100,
+        )
+    else:
+        logger.info(
+            "Prediction error drift: holdout MAE=%.2f, production MAE=%.2f, change=%+.1f%%, status=%s",
+            holdout_mae, prod_mae, pct_change * 100, drift_status,
+        )
 
-    # 6. Feature distribution drift check
-    drift_features = ["temp", "traffic_volume", "clouds_all", "rain_1h"]
-    feature_drift = check_feature_drift(
-        df.loc[X_train.index], df.loc[X_test.index], drift_features
-    )
+    error_drift = {
+        "status": drift_status,
+        "first_half_mae": holdout_mae,
+        "second_half_mae": prod_mae,
+        "pct_change": pct_change,
+        "label_first": "2012-2017 holdout",
+        "label_second": "2018 production",
+    }
 
-    # 7. Generate and print report
-    report = generate_report(error_drift, feature_drift)
+    # Feature distribution drift: KS test on key features (train vs 2018)
+    drift_features = ["temp", "clouds_all", "rain_1h", "hour"]
+    feature_drift = check_feature_drift(df_train, df_prod, drift_features)
+
+    for fd in feature_drift:
+        if fd["status"] == "ALERT":
+            logger.warning(
+                "Feature drift ALERT on %s: KS=%.4f, p=%.4f",
+                fd["feature"], fd["ks_statistic"], fd["p_value"],
+            )
+
+    # Generate report
+    lines = [
+        "=" * 60,
+        "MODEL MONITORING REPORT",
+        "=" * 60,
+        "",
+        "Training period:    2012-2017",
+        f"Production period:  2018 ({len(df_prod)} records)",
+        "",
+        "--- Prediction Error Drift ---",
+        f"  Holdout MAE (2012-2017): {holdout_mae:.2f}",
+        f"  Production MAE (2018):   {prod_mae:.2f}",
+        f"  Change:                  {pct_change * 100:+.2f}%",
+        f"  Status:                  [{drift_status}]",
+        "",
+        "--- Feature Distribution Drift (KS Test: train vs 2018) ---",
+    ]
+    for fd in feature_drift:
+        lines.append(
+            f"  {fd['feature']:20s}  KS={fd['ks_statistic']:.4f}  "
+            f"p={fd['p_value']:.4f}  [{fd['status']}]"
+        )
+    lines.extend(["", "=" * 60])
+    report = "\n".join(lines)
     print(report)
 
-    # 8. Save report
     os.makedirs(os.path.dirname(report_path), exist_ok=True)
     with open(report_path, "w") as f:
         f.write(report)
     logger.info("Monitoring report saved to %s", report_path)
 
-    # 9. Save drift visualization
-    save_drift_visualization(
-        df.loc[X_train.index], df.loc[X_test.index], drift_features, figure_path
-    )
+    save_drift_visualization(df_train, df_prod, drift_features, figure_path)
 
 
 if __name__ == "__main__":

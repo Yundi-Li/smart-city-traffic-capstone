@@ -2,16 +2,19 @@
 MODEL MONITORING REPORT
 ============================================================
 
---- Prediction Error Drift ---
-  First half MAE:  309.96
-  Second half MAE: 302.32
-  Change:          -2.47%
-  Status:          [PASS]
+Training period:    2012-2017
+Production period:  2018 (6533 records)
 
---- Feature Distribution Drift (KS Test) ---
-  temp                  KS=0.0095  p=0.5952  [PASS]
-  traffic_volume        KS=0.0073  p=0.8736  [PASS]
-  clouds_all            KS=0.0058  p=0.9805  [PASS]
-  rain_1h               KS=0.0059  p=0.9760  [PASS]
+--- Prediction Error Drift ---
+  Holdout MAE (2012-2017): 303.60
+  Production MAE (2018):   283.04
+  Change:                  -6.77%
+  Status:                  [PASS]
+
+--- Feature Distribution Drift (KS Test: train vs 2018) ---
+  temp                  KS=0.1303  p=0.0000  [ALERT]
+  clouds_all            KS=0.0858  p=0.0000  [ALERT]
+  rain_1h               KS=0.0129  p=0.3229  [PASS]
+  hour                  KS=0.0031  p=1.0000  [PASS]
 
 ============================================================
