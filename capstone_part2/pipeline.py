@@ -56,9 +56,11 @@ def standardise_weather(df: pd.DataFrame) -> pd.DataFrame:
     df["weather_main"] = df["weather_main"].str.strip().str.title()
     # Lowercase and strip weather_description
     df["weather_description"] = df["weather_description"].str.strip().str.lower()
-    # Standardise holiday - replace NaN / 'None' with 'No Holiday'
+    # Standardise holiday — NaN means non-holiday; replace with 'No Holiday'
+    holiday_filled = df["holiday"].isnull().sum()
     df["holiday"] = df["holiday"].fillna("No Holiday")
-    df.loc[df["holiday"] == "None", "holiday"] = "No Holiday"
+    if holiday_filled > 0:
+        logger.warning("Filled %d null holiday values with 'No Holiday'", holiday_filled)
 
     changed_main = (before["weather_main"] != df["weather_main"]).sum()
     changed_desc = (before["weather_description"] != df["weather_description"]).sum()
@@ -151,36 +153,53 @@ def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def check_missing_values(df: pd.DataFrame) -> pd.DataFrame:
-    """Check for missing values in each column and handle them."""
+    """Check for missing values before any standardisation.
+
+    The raw holiday column uses 'None' (string) for non-holiday hours.
+    This is expected, not a true missing value — log at INFO.
+    """
     missing = df.isnull().sum()
-    total_missing = missing.sum()
 
     for col, count in missing.items():
         if count > 0:
-            logger.info("Column '%s' has %d missing values", col, count)
+            logger.info("Column '%s' has %d null values", col, count)
         else:
-            logger.info("Column '%s': no missing values", col)
+            logger.info("Column '%s': no null values", col)
 
-    # Holiday missingness is expected — non-holiday hours have "No Holiday"
-    holiday_no_holiday = (df["holiday"] == "No Holiday").sum()
-    if holiday_no_holiday > 0:
-        logger.warning(
-            "Holiday column: %d rows are 'No Holiday' (expected for non-holiday hours)",
-            holiday_no_holiday,
-        )
+    # Holiday column: NaN for non-holiday hours is expected, not a data quality issue
+    holiday_null = df["holiday"].isnull().sum()
+    holiday_named = df["holiday"].notnull().sum()
+    logger.info(
+        "Holiday column: %d null (non-holiday hours, expected), %d named holidays",
+        holiday_null, holiday_named,
+    )
 
     # Impute unexpected numeric nulls with monthly median
     numeric_cols = ["temp", "rain_1h", "snow_1h", "clouds_all", "traffic_volume"]
-    df["_month"] = df["date_time"].dt.month
+    imputed_any = False
+    if "date_time" in df.columns:
+        try:
+            dt = pd.to_datetime(df["date_time"])
+            df["_month"] = dt.dt.month
+        except Exception:
+            df["_month"] = 1
+    else:
+        df["_month"] = 1
+
     for col in numeric_cols:
         null_count = df[col].isnull().sum()
         if null_count > 0:
             logger.warning("Imputing %d missing values in '%s' with monthly median", null_count, col)
+            imputed_any = True
             for month in range(1, 13):
                 month_mask = df["_month"] == month
                 median_val = df.loc[month_mask & df[col].notnull(), col].median()
                 df.loc[month_mask & df[col].isnull(), col] = median_val
+
     df = df.drop(columns=["_month"])
+
+    if not imputed_any:
+        logger.info("No numeric columns required imputation")
 
     return df
 
@@ -232,10 +251,10 @@ def run_pipeline(debug: bool = False) -> None:
     try:
         df = load_data(RAW_DATA_PATH)
         validate_schema(df)
+        df = check_missing_values(df)
         df = standardise_weather(df)
         df = parse_datetime(df)
         df = remove_duplicates(df)
-        df = check_missing_values(df)
         df = detect_and_impute_outliers(df)
 
         os.makedirs(OUTPUT_DIR, exist_ok=True)
