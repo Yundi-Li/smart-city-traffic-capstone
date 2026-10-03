@@ -1,9 +1,10 @@
 """
 Shared data-loading utility for Part 3 scripts.
 
-All Part 3 scripts should use the cleaned data from Part 2 so that
-outlier fixes (0 K temperatures, 9,831 mm rain) and timestamp
-deduplication carry forward.
+All Part 3 scripts load the featured dataset from Part 2, which includes
+cleaned data (deduplicated, outlier-imputed) plus all engineered features
+(time, weather, cyclical encodings, is_holiday, is_low_visibility,
+weather_severity, congestion_category, normalised numerics).
 """
 
 import logging
@@ -14,30 +15,42 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CLEANED_PATH = os.path.join(BASE_DIR, "capstone_part2", "cleaned_traffic.csv")
 FEATURED_PATH = os.path.join(BASE_DIR, "capstone_part2", "featured_traffic.csv")
-RAW_PATH = os.path.join(BASE_DIR, "data", "Metro_Interstate_Traffic_Volume.csv")
+FIGURES_DIR = os.path.join(BASE_DIR, "figures")
 
-
-def load_cleaned_data() -> pd.DataFrame:
-    """Load the Part 2 cleaned dataset (40,575 rows, deduplicated and imputed)."""
-    try:
-        df = pd.read_csv(CLEANED_PATH, parse_dates=["date_time"])
-        logger.info("Loaded cleaned data from Part 2: %d rows, %d columns", len(df), len(df.columns))
-        return df
-    except FileNotFoundError:
-        logger.warning("Cleaned data not found at %s — falling back to raw CSV", CLEANED_PATH)
-        df = pd.read_csv(RAW_PATH, parse_dates=["date_time"])
-        logger.info("Loaded raw data: %d rows, %d columns", len(df), len(df.columns))
-        return df
+SEVERE_WEATHER = [
+    "Thunderstorm", "Squall", "Fog", "Smoke", "Haze", "Mist", "Snow", "Rain",
+]
 
 
 def load_featured_data() -> pd.DataFrame:
-    """Load the Part 2 featured dataset (40,575 rows, 33 columns)."""
+    """Load the Part 2 featured dataset."""
     try:
         df = pd.read_csv(FEATURED_PATH, parse_dates=["date_time"])
-        logger.info("Loaded featured data from Part 2: %d rows, %d columns", len(df), len(df.columns))
+        logger.info("Loaded featured data: %d rows, %d columns", len(df), len(df.columns))
         return df
     except FileNotFoundError:
-        logger.warning("Featured data not found at %s — falling back to cleaned data", FEATURED_PATH)
-        return load_cleaned_data()
+        logger.error("Featured data not found at %s — run Part 2 pipeline first", FEATURED_PATH)
+        raise
+
+
+def get_feature_columns(df: pd.DataFrame) -> list:
+    """Return feature column names suitable for ML (no target, no IDs, no strings)."""
+    base = [
+        "hour_sin", "hour_cos", "dow_sin", "dow_cos",
+        "is_weekend", "is_holiday", "is_low_visibility", "weather_severity",
+        "temp", "rain_1h", "snow_1h", "clouds_all",
+    ]
+    weather_ohe = [c for c in df.columns if c.startswith("weather_")
+                   and c not in ("weather_main", "weather_description")]
+    return [c for c in base + weather_ohe if c in df.columns]
+
+
+def add_proxy_label(df: pd.DataFrame) -> pd.DataFrame:
+    """Add the proxy accident-risk label per capstone instructions."""
+    is_high = df["congestion_category"].isin(["High", "Severe"])
+    risky = df["weather_main"].isin(SEVERE_WEATHER) | (df["is_low_visibility"] == 1)
+    df["high_risk"] = (is_high & risky).astype(int)
+    logger.info("Proxy high_risk label: %d positive (%.1f%%)",
+                df["high_risk"].sum(), 100 * df["high_risk"].mean())
+    return df

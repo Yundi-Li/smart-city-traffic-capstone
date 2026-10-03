@@ -1,6 +1,13 @@
-"""FastAPI application for traffic volume prediction using GradientBoostingRegressor."""
+"""FastAPI application for traffic volume prediction.
 
+At startup, tries to load the production model from MLflow registry.
+Falls back to training a GradientBoostingRegressor on featured data.
+"""
+
+import json
 import logging
+import os
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
@@ -10,17 +17,22 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.preprocessing import OneHotEncoder
 
 logger = logging.getLogger(__name__)
 
-# Global model state
-model: Optional[GradientBoostingRegressor] = None
-encoder: Optional[OneHotEncoder] = None
-weather_categories: Optional[list] = None
-quartile_thresholds: Optional[dict] = None
+SCRIPT_DIR = Path(__file__).resolve().parent
+PART3_DIR = SCRIPT_DIR.parent
+REPO_ROOT = PART3_DIR.parent
 
-FEATURE_COLS = ["hour", "day_of_week", "is_weekend", "temp", "rain_1h", "snow_1h", "clouds_all"]
+# Add capstone_part3 to path for data_loader
+sys.path.insert(0, str(PART3_DIR))
+from data_loader import load_featured_data, get_feature_columns
+
+# Global model state
+model: Optional[object] = None
+feature_cols: Optional[list] = None
+quartile_thresholds: Optional[dict] = None
+model_source: str = "unknown"
 
 
 class PredictRequest(BaseModel):
@@ -42,59 +54,101 @@ class PredictResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     model_type: str
+    model_source: str
 
 
-def _build_features(df: pd.DataFrame, encoder: OneHotEncoder, fit: bool = False) -> np.ndarray:
-    """Build the feature matrix from a dataframe containing the raw columns."""
-    numeric = df[FEATURE_COLS].values
-    weather = df[["weather_main"]].values
-    if fit:
-        encoded = encoder.fit_transform(weather).toarray()
-    else:
-        encoded = encoder.transform(weather).toarray()
-    return np.hstack([numeric, encoded])
+def _load_mlflow_model():
+    """Try to load the production model from MLflow registry."""
+    global model, model_source
+
+    mlflow_dir = PART3_DIR / "mlflow_logs"
+    db_path = mlflow_dir / "mlflow.db"
+    if not db_path.exists():
+        logger.info("MLflow DB not found at %s, skipping registry load", db_path)
+        return False
+
+    try:
+        import mlflow
+        tracking_uri = f"sqlite:///{db_path}"
+        mlflow.set_tracking_uri(tracking_uri)
+        model = mlflow.pyfunc.load_model("models:/traffic_volume_regressor@production")
+        model_source = "mlflow_registry"
+        logger.info("Loaded production model from MLflow registry")
+        return True
+    except Exception as e:
+        logger.warning("Failed to load MLflow model: %s", e)
+        return False
 
 
-def train_model() -> None:
-    """Train a GradientBoostingRegressor on the traffic dataset."""
-    global model, encoder, weather_categories, quartile_thresholds
+def _train_fallback_model():
+    """Train a GBR on featured data as fallback."""
+    global model, model_source
 
-    repo_root = Path(__file__).resolve().parents[2]
-    data_path = repo_root / "capstone_part2" / "cleaned_traffic.csv"
+    df = load_featured_data()
+    fcols = get_feature_columns(df)
 
-    logger.info("Loading dataset from %s", data_path)
-    df = pd.read_csv(data_path)
+    X = df[fcols].values
+    y = df["traffic_volume"].values
 
-    # Feature engineering
-    df["date_time"] = pd.to_datetime(df["date_time"])
-    df["hour"] = df["date_time"].dt.hour
-    df["day_of_week"] = df["date_time"].dt.dayofweek
-    df["is_weekend"] = (df["day_of_week"] >= 5).astype(int)
+    gbr = GradientBoostingRegressor(n_estimators=200, max_depth=5, random_state=42)
+    logger.info("Training fallback GBR on %d samples, %d features", X.shape[0], X.shape[1])
+    gbr.fit(X, y)
+
+    model = gbr
+    model_source = "fallback_gbr"
+    logger.info("Fallback model training complete")
+
+
+def _init_model():
+    """Initialize model and feature columns at startup."""
+    global feature_cols, quartile_thresholds
+
+    df = load_featured_data()
+    feature_cols = get_feature_columns(df)
 
     # Compute quartile thresholds for congestion classification
     q25 = float(df["traffic_volume"].quantile(0.25))
     q50 = float(df["traffic_volume"].quantile(0.50))
     q75 = float(df["traffic_volume"].quantile(0.75))
     quartile_thresholds = {"q25": q25, "q50": q50, "q75": q75}
-    logger.info("Quartile thresholds: %s", quartile_thresholds)
 
-    # One-hot encode weather_main
-    encoder = OneHotEncoder(sparse_output=False, handle_unknown="ignore")
-    X = _build_features(df, encoder, fit=True)
-    y = df["traffic_volume"].values
+    if not _load_mlflow_model():
+        _train_fallback_model()
 
-    weather_categories = list(encoder.categories_[0])
 
-    model = GradientBoostingRegressor(n_estimators=200, max_depth=5, random_state=42)
-    logger.info("Training GradientBoostingRegressor (%d samples, %d features)", X.shape[0], X.shape[1])
-    model.fit(X, y)
-    logger.info("Model training complete")
+def _build_feature_row(request: PredictRequest) -> np.ndarray:
+    """Build a feature vector from a prediction request."""
+    hour = request.hour
+    dow = request.day_of_week
+    row = {
+        "hour_sin": np.sin(2 * np.pi * hour / 24),
+        "hour_cos": np.cos(2 * np.pi * hour / 24),
+        "dow_sin": np.sin(2 * np.pi * dow / 7),
+        "dow_cos": np.cos(2 * np.pi * dow / 7),
+        "is_weekend": request.is_weekend,
+        "is_holiday": 0,
+        "is_low_visibility": 1 if request.weather_main in ("Fog", "Mist", "Haze", "Smoke") else 0,
+        "weather_severity": {"Clear": 0, "Clouds": 1, "Mist": 2, "Haze": 2, "Drizzle": 2,
+                             "Rain": 3, "Fog": 3, "Snow": 4, "Thunderstorm": 4,
+                             "Squall": 4, "Smoke": 4}.get(request.weather_main, 2),
+        "temp": request.temp,
+        "rain_1h": request.rain_1h,
+        "snow_1h": request.snow_1h,
+        "clouds_all": request.clouds_all,
+    }
+    # Add weather one-hot columns (set matching one to 1, rest to 0)
+    for col in feature_cols:
+        if col.startswith("weather_") and col not in row:
+            expected_weather = col.replace("weather_", "")
+            row[col] = 1 if request.weather_main == expected_weather else 0
+
+    return np.array([[row.get(c, 0) for c in feature_cols]])
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Train model on startup."""
-    train_model()
+    """Load or train model on startup."""
+    _init_model()
     yield
 
 
@@ -104,32 +158,29 @@ app = FastAPI(title="Traffic Volume Prediction API", lifespan=lifespan)
 @app.get("/health", response_model=HealthResponse)
 async def health():
     """Return service health status."""
-    return HealthResponse(status="healthy", model_type="GradientBoostingRegressor")
+    return HealthResponse(
+        status="healthy",
+        model_type=type(model).__name__ if model else "none",
+        model_source=model_source,
+    )
 
 
 @app.post("/predict", response_model=PredictResponse)
 async def predict(request: PredictRequest):
     """Predict traffic volume and congestion level."""
-    if model is None or encoder is None or quartile_thresholds is None:
+    if model is None or feature_cols is None or quartile_thresholds is None:
         raise HTTPException(status_code=503, detail="Model not ready")
 
     try:
-        input_df = pd.DataFrame([{
-            "hour": request.hour,
-            "day_of_week": request.day_of_week,
-            "is_weekend": request.is_weekend,
-            "temp": request.temp,
-            "rain_1h": request.rain_1h,
-            "snow_1h": request.snow_1h,
-            "clouds_all": request.clouds_all,
-            "weather_main": request.weather_main,
-        }])
+        X = _build_feature_row(request)
 
-        X = _build_features(input_df, encoder, fit=False)
-        prediction = float(model.predict(X)[0])
+        if model_source == "mlflow_registry":
+            prediction = float(model.predict(pd.DataFrame(X, columns=feature_cols))[0])
+        else:
+            prediction = float(model.predict(X)[0])
+
         prediction = max(prediction, 0.0)
 
-        # Classify congestion based on quartile thresholds
         if prediction <= quartile_thresholds["q25"]:
             congestion = "low"
         elif prediction <= quartile_thresholds["q50"]:
@@ -151,9 +202,8 @@ async def predict(request: PredictRequest):
 
 @app.get("/status")
 async def monitoring_status():
-    """Return the latest monitoring status (PASS/ALERT per check)."""
-    import json
-    status_path = Path(__file__).resolve().parents[1] / "reports" / "monitoring_status.json"
+    """Return the latest monitoring status from monitoring_status.json."""
+    status_path = PART3_DIR / "reports" / "monitoring_status.json"
     try:
         with open(status_path) as f:
             return json.load(f)

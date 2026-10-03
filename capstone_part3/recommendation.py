@@ -3,20 +3,23 @@ Travel Timing Recommendation System
 
 Analyzes historical Metro Interstate traffic patterns to recommend
 optimal travel times based on day type, weather conditions, and hour of day.
+Uses the Part 2 featured dataset via data_loader.
 """
 
 import logging
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 
-logger = logging.getLogger(__name__)
+from data_loader import load_featured_data, FIGURES_DIR
 
-DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "capstone_part2", "cleaned_traffic.csv")
-FIGURES_DIR = os.path.join(os.path.dirname(__file__), "..", "figures")
+logger = logging.getLogger(__name__)
 
 WEATHER_CATEGORY_MAP = {
     "Clear": "Clear",
@@ -33,53 +36,16 @@ WEATHER_CATEGORY_MAP = {
 }
 
 
-def load_and_prepare_data():
-    """Load the traffic CSV and engineer time/weather features.
-
-    Returns:
-        pd.DataFrame with added columns: hour, day_of_week, is_weekend, weather_category.
-
-    Raises:
-        FileNotFoundError: If the CSV file is missing.
-        ValueError: If required columns are absent.
-    """
-    logger.info("Loading data from %s", DATA_PATH)
-    if not os.path.exists(DATA_PATH):
-        raise FileNotFoundError(f"Dataset not found at {DATA_PATH}")
-
-    df = pd.read_csv(DATA_PATH)
-
-    required = {"date_time", "traffic_volume", "weather_main"}
-    missing = required - set(df.columns)
-    if missing:
-        raise ValueError(f"Missing required columns: {missing}")
-
-    df["date_time"] = pd.to_datetime(df["date_time"])
-    df["hour"] = df["date_time"].dt.hour
-    df["day_of_week"] = df["date_time"].dt.dayofweek  # 0=Mon, 6=Sun
-    df["is_weekend"] = df["day_of_week"] >= 5
-    df["day_type"] = df["is_weekend"].map({True: "weekend", False: "weekday"})
+def _prepare(df: pd.DataFrame) -> pd.DataFrame:
+    """Add weather_category and day_type columns from featured data."""
+    df = df.copy()
     df["weather_category"] = df["weather_main"].map(WEATHER_CATEGORY_MAP).fillna("Other")
-
-    logger.info("Loaded %d records spanning %s to %s", len(df),
-                df["date_time"].min().date(), df["date_time"].max().date())
+    df["day_type"] = df["is_weekend"].map({1: "weekend", 0: "weekday", True: "weekend", False: "weekday"})
     return df
 
 
 def get_traffic_stats(df, day_type, weather_condition):
-    """Return hourly traffic statistics for a given day type and weather.
-
-    Args:
-        df: Prepared DataFrame from load_and_prepare_data().
-        day_type: 'weekday' or 'weekend'.
-        weather_condition: One of Clear, Cloudy, Rain, Snow, Fog, Storm, Other.
-
-    Returns:
-        pd.DataFrame indexed by hour with columns: mean, std, p25, median, p75, count.
-
-    Raises:
-        ValueError: If no data matches the filters.
-    """
+    """Return hourly traffic statistics for a given day type and weather."""
     mask = (df["day_type"] == day_type) & (df["weather_category"] == weather_condition)
     subset = df.loc[mask]
 
@@ -100,7 +66,6 @@ def get_traffic_stats(df, day_type, weather_condition):
 
 
 def _format_hour(hour):
-    """Convert 24-hour int to readable string like '10:00 AM'."""
     if hour == 0:
         return "12:00 AM"
     elif hour < 12:
@@ -112,31 +77,20 @@ def _format_hour(hour):
 
 
 def _format_hour_range(hour):
-    """Return a range string like '10:00-11:00 AM'."""
     start = _format_hour(hour)
     end = _format_hour((hour + 1) % 24)
     return f"{start} – {end}"
 
 
 def recommend_travel_time(df, day_type, weather_condition, top_n=3):
-    """Recommend the best travel windows based on lowest historical volume.
-
-    Args:
-        df: Prepared DataFrame.
-        day_type: 'weekday' or 'weekend'.
-        weather_condition: Weather category string.
-        top_n: Number of recommendations to return.
-
-    Returns:
-        list[dict] with keys: hour, mean_volume, recommendation (plain-language string).
-    """
+    """Recommend the best travel windows (06:00-22:00) based on lowest historical volume."""
     try:
         stats = get_traffic_stats(df, day_type, weather_condition)
     except ValueError:
         logger.warning("Cannot recommend: no data for %s/%s", day_type, weather_condition)
         return []
 
-    # Restrict to realistic travel hours (06:00–22:00)
+    # Restrict to 06:00-22:00
     realistic = stats.loc[(stats.index >= 6) & (stats.index <= 22)]
     if realistic.empty:
         realistic = stats
@@ -146,14 +100,13 @@ def recommend_travel_time(df, day_type, weather_condition, top_n=3):
     peak_volume = realistic["mean"].max()
 
     recommendations = []
-
     for hour, row in best.iterrows():
         pct_below_peak = (1 - row["mean"] / peak_volume) * 100 if peak_volume > 0 else 0
         rec_text = (
             f"For a {day_type} journey in {weather_condition.lower()} weather, "
             f"consider travelling between {_format_hour_range(hour)}, "
-            f"when traffic is typically ~{row['mean']:,.0f} vehicles/hour, "
-            f"about {pct_below_peak:.0f}% below the {_format_hour(peak_hour)} peak."
+            f"when traffic is typically ~{row['mean']:,.0f} vehicles/hour "
+            f"({pct_below_peak:.0f}% below the {_format_hour(peak_hour)} peak)."
         )
         recommendations.append({
             "hour": int(hour),
@@ -166,16 +119,7 @@ def recommend_travel_time(df, day_type, weather_condition, top_n=3):
 
 
 def get_peak_hours(df, day_type, top_n=3):
-    """Return the peak congestion hours to avoid.
-
-    Args:
-        df: Prepared DataFrame.
-        day_type: 'weekday' or 'weekend'.
-        top_n: Number of peak hours.
-
-    Returns:
-        list[dict] with keys: hour, mean_volume, warning (plain-language string).
-    """
+    """Return the peak congestion hours to avoid."""
     mask = df["day_type"] == day_type
     subset = df.loc[mask]
 
@@ -185,17 +129,12 @@ def get_peak_hours(df, day_type, top_n=3):
 
     hourly = subset.groupby("hour")["traffic_volume"].mean().sort_values(ascending=False)
     peaks = []
-
     for hour, vol in hourly.head(top_n).items():
         warning = (
             f"Avoid travelling between {_format_hour_range(hour)} on {day_type}s — "
             f"average volume reaches {vol:,.0f} vehicles/hour."
         )
-        peaks.append({
-            "hour": int(hour),
-            "mean_volume": round(vol, 1),
-            "warning": warning,
-        })
+        peaks.append({"hour": int(hour), "mean_volume": round(vol, 1), "warning": warning})
 
     logger.info("Identified %d peak hours for %s", len(peaks), day_type)
     return peaks
@@ -223,10 +162,7 @@ def _save_heatmap(df):
 
 
 def generate_full_report(df):
-    """Generate and print travel recommendations for all day_type/weather combos.
-
-    Also saves the traffic heatmap figure.
-    """
+    """Generate and print travel recommendations for all day_type/weather combos."""
     print("=" * 70)
     print("SMART CITY TRAFFIC — TRAVEL TIMING RECOMMENDATIONS")
     print("=" * 70)
@@ -239,7 +175,7 @@ def generate_full_report(df):
         print(f"{'─' * 70}")
         peaks = get_peak_hours(df, day_type)
         for p in peaks:
-            print(f"  ⚠  {p['warning']}")
+            print(f"  !!  {p['warning']}")
 
         weather_cats = sorted(df.loc[df["day_type"] == day_type, "weather_category"].unique())
         for weather in weather_cats:
@@ -250,7 +186,7 @@ def generate_full_report(df):
             if not recs:
                 print("  (insufficient data)")
             for r in recs:
-                print(f"  ✓  {r['recommendation']}")
+                print(f"  ->  {r['recommendation']}")
 
     print(f"\n{'=' * 70}")
     print("Heatmap saved to figures/traffic_heatmap_recommendations.png")
@@ -261,7 +197,8 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 
     try:
-        data = load_and_prepare_data()
+        data = load_featured_data()
+        data = _prepare(data)
         generate_full_report(data)
     except FileNotFoundError as exc:
         logger.error("Data file missing: %s", exc)

@@ -61,7 +61,19 @@ def add_weather_features(df: pd.DataFrame) -> pd.DataFrame:
     df["is_rainy"] = df["weather_main"].isin(["Rain", "Drizzle", "Thunderstorm"]).astype(int)
     df["is_snowy"] = (df["weather_main"] == "Snow").astype(int)
 
-    logger.info("Added %d one-hot weather columns, is_rainy, is_snowy", len(weather_dummies.columns))
+    # Low-visibility flag: clouds_all > 80 and weather is fog/mist/haze/smoke
+    LOW_VIS = ["Fog", "Mist", "Haze", "Smoke"]
+    df["is_low_visibility"] = ((df["clouds_all"] > 80) & df["weather_main"].isin(LOW_VIS)).astype(int)
+
+    # Ordinal weather severity score
+    SEVERITY = {
+        "Clear": 0, "Clouds": 1, "Mist": 2, "Haze": 2, "Drizzle": 2,
+        "Rain": 3, "Fog": 3, "Snow": 4, "Thunderstorm": 4, "Squall": 4, "Smoke": 4,
+    }
+    df["weather_severity"] = df["weather_main"].map(SEVERITY).fillna(2).astype(int)
+
+    logger.info("Added %d one-hot weather columns, is_rainy, is_snowy, is_low_visibility, weather_severity",
+                len(weather_dummies.columns))
     return df
 
 
@@ -92,9 +104,9 @@ def add_congestion_category(df: pd.DataFrame) -> pd.DataFrame:
         df["traffic_volume"] > q3,
     ]
     labels = ["Low", "Medium", "High", "Severe"]
-    df["congestion"] = np.select(conditions, labels, default="Medium")
+    df["congestion_category"] = np.select(conditions, labels, default="Medium")
 
-    logger.info("Added congestion category: %s", dict(df["congestion"].value_counts()))
+    logger.info("Added congestion_category: %s", dict(df["congestion_category"].value_counts()))
     return df
 
 

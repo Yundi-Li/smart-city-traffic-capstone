@@ -2,39 +2,18 @@
 advanced_ai.py - Advanced AI Model Training with MLflow Experiment Tracking
 ==========================================================================
 
-Why MLflow was chosen:
-    MLflow is an open-source platform for managing the end-to-end machine learning
-    lifecycle. It was selected for this capstone for several reasons:
-
-    1. **Reproducibility** - Every experiment run records the exact hyperparameters,
-       metrics, and code version used, making it trivial to reproduce any result.
-
-    2. **Model Comparison** - MLflow's tracking API lets us compare runs side-by-side.
-       Here we train three model families (Random Forest, Gradient Boosting, Neural
-       Network) and need a structured way to evaluate them.
-
-    3. **Artifact Management** - Trained models, plots, and metadata are stored
-       alongside the run that produced them, avoiding orphaned model files.
-
-    4. **Standardised API** - The same log_param / log_metric pattern works regardless
-       of the underlying framework, reducing cognitive overhead.
-
-How it is implemented:
-    - A local file-based tracking URI (capstone_part3/mlflow_logs/) stores all data.
-    - Each model is trained inside its own mlflow.start_run() context.
-    - Hyperparameters are logged with mlflow.log_param, metrics with mlflow.log_metric,
-      and serialised models with the appropriate log_model call.
-
-Limitations:
-    - Adds disk I/O overhead to each run.
-    - New users must learn MLflow concepts (experiments, runs, artifacts).
-    - Local file store only; collaborative teams need a remote tracking server.
-    - No Model Registry used here; that would be the next step for production.
+Trains RandomForest, GradientBoosting, and PyTorch Neural Network models
+on the Part 2 featured dataset. Uses chronological train/test split
+(2012-2016 train, 2017 test). Tracks all experiments with MLflow and
+registers models in the MLflow Model Registry.
 """
 
 import logging
 import os
+import sys
 import warnings
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import mlflow
 import mlflow.sklearn
@@ -45,57 +24,20 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, r2_score
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+
+from data_loader import load_featured_data, get_feature_columns, FIGURES_DIR
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 logger = logging.getLogger(__name__)
 
-DATA_PATH = os.path.join("capstone_part2", "cleaned_traffic.csv")
-MLFLOW_TRACKING_DIR = os.path.join("capstone_part3", "mlflow_logs")
 EXPERIMENT_NAME = "traffic_volume_prediction"
-
-
-def load_data(path: str) -> pd.DataFrame:
-    try:
-        df = pd.read_csv(path, parse_dates=["date_time"])
-        logger.info("Loaded dataset: %d rows, %d columns", len(df), len(df.columns))
-        return df
-    except FileNotFoundError:
-        logger.error("Dataset not found at %s", path)
-        raise
-
-
-def engineer_features(df: pd.DataFrame):
-    df = df.copy()
-    df["hour"] = df["date_time"].dt.hour
-    df["day_of_week"] = df["date_time"].dt.dayofweek
-    df["is_weekend"] = (df["day_of_week"] >= 5).astype(int)
-    df["hour_sin"] = np.sin(2 * np.pi * df["hour"] / 24)
-    df["hour_cos"] = np.cos(2 * np.pi * df["hour"] / 24)
-    df["dow_sin"] = np.sin(2 * np.pi * df["day_of_week"] / 7)
-    df["dow_cos"] = np.cos(2 * np.pi * df["day_of_week"] / 7)
-    weather_dummies = pd.get_dummies(df["weather_main"], prefix="weather")
-    df = pd.concat([df, weather_dummies], axis=1)
-    df["is_holiday"] = (df["holiday"] != "None").astype(int)
-
-    numeric_features = ["temp", "rain_1h", "snow_1h", "clouds_all"]
-    time_features = ["hour", "day_of_week", "is_weekend",
-                     "hour_sin", "hour_cos", "dow_sin", "dow_cos"]
-    weather_features = [c for c in df.columns if c.startswith("weather_")
-                        and c not in ("weather_main", "weather_description")]
-    other_features = ["is_holiday"]
-    feature_cols = numeric_features + time_features + weather_features + other_features
-    logger.info("Total feature count: %d", len(feature_cols))
-    return df, feature_cols
+REGISTERED_MODEL_NAME = "traffic_volume_regressor"
 
 
 def _evaluate(y_true, y_pred):
     return {"mae": mean_absolute_error(y_true, y_pred), "r2": r2_score(y_true, y_pred)}
-
-
-REGISTERED_MODEL_NAME = "traffic_volume_regressor"
 
 
 def train_sklearn_model(model, model_name, X_train, X_test, y_train, y_test, params,
@@ -142,6 +84,7 @@ class SimpleNet(nn.Module):
             nn.Linear(64, 32), nn.ReLU(),
             nn.Linear(32, 1),
         )
+
     def forward(self, x):
         return self.net(x).squeeze(-1)
 
@@ -162,7 +105,7 @@ def train_pytorch_model(X_train_scaled, X_test_scaled, y_train, y_test, params):
         loader = DataLoader(TensorDataset(X_t, y_t),
                             batch_size=params.get("batch_size", 64), shuffle=True)
 
-        epochs = params.get("epochs", 50)
+        epochs = params.get("epochs", 30)
         for epoch in range(epochs):
             model.train()
             for xb, yb in loader:
@@ -199,50 +142,103 @@ def print_summary(results: dict) -> None:
     print(sep + "\n")
 
 
+def export_summary(results: dict, registered_versions: dict) -> None:
+    """Export a markdown summary of all MLflow runs to reports/mlflow_summary.md."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    reports_dir = os.path.join(script_dir, "reports")
+    os.makedirs(reports_dir, exist_ok=True)
+    summary_path = os.path.join(reports_dir, "mlflow_summary.md")
+
+    lines = [
+        "# MLflow Experiment Summary",
+        "",
+        f"**Experiment:** {EXPERIMENT_NAME}",
+        f"**Tracking URI:** {mlflow.get_tracking_uri()}",
+        "",
+        "## Model Runs",
+        "",
+        "| Model | MAE | R2 | Registered Version |",
+        "|-------|-----|----|--------------------|",
+    ]
+    for name, m in results.items():
+        ver = registered_versions.get(name, "—")
+        lines.append(f"| {name} | {m['mae']:.2f} | {m['r2']:.4f} | {ver} |")
+
+    lines.extend(["", "## Registered Model Versions", ""])
+    for name, ver in registered_versions.items():
+        lines.append(f"- **{name}**: version {ver}")
+
+    with open(summary_path, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    logger.info("MLflow summary exported to %s", summary_path)
+
+
 def main():
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s [%(levelname)s] %(name)s - %(message)s")
 
-    os.makedirs(MLFLOW_TRACKING_DIR, exist_ok=True)
-    db_path = os.path.abspath(os.path.join(MLFLOW_TRACKING_DIR, "mlflow.db"))
-    tracking_uri = f"sqlite:///{db_path}"
+    # MLflow setup with relative paths
+    mlflow_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mlflow_logs")
+    os.makedirs(mlflow_dir, exist_ok=True)
+
+    # Delete old mlflow.db for a fresh start
+    db_file = os.path.join(mlflow_dir, "mlflow.db")
+    if os.path.exists(db_file):
+        os.remove(db_file)
+        logger.info("Deleted old mlflow.db for fresh start")
+
+    tracking_uri = f"sqlite:///{os.path.join(mlflow_dir, 'mlflow.db')}"
     mlflow.set_tracking_uri(tracking_uri)
     mlflow.set_experiment(EXPERIMENT_NAME)
     logger.info("MLflow tracking URI: %s", tracking_uri)
 
-    df = load_data(DATA_PATH)
-    df, feature_cols = engineer_features(df)
+    # Load featured data from Part 2
+    df = load_featured_data()
+    feature_cols = get_feature_columns(df)
 
-    X = df[feature_cols].values
-    y = df["traffic_volume"].values
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=42)
-    logger.info("Train size: %d, Test size: %d", len(X_train), len(X_test))
+    # Chronological split: train 2012-2016, test 2017
+    df = df.sort_values("date_time").reset_index(drop=True)
+    train_mask = df["date_time"].dt.year <= 2016
+    test_mask = df["date_time"].dt.year == 2017
+
+    X_train = df.loc[train_mask, feature_cols].values
+    y_train = df.loc[train_mask, "traffic_volume"].values
+    X_test = df.loc[test_mask, feature_cols].values
+    y_test = df.loc[test_mask, "traffic_volume"].values
+    logger.info("Train size: %d (2012-2016), Test size: %d (2017)", len(X_train), len(X_test))
 
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
 
     results = {}
+    registered_versions = {}
 
+    # RandomForest — registered as v1
     rf_params = {"n_estimators": 200, "max_depth": 15, "min_samples_split": 5, "random_state": 42}
     results["RandomForestRegressor"] = train_sklearn_model(
         RandomForestRegressor(**rf_params), "RandomForestRegressor",
         X_train, X_test, y_train, y_test, rf_params,
         register_as=REGISTERED_MODEL_NAME)
+    registered_versions["RandomForestRegressor"] = "1"
 
+    # GradientBoosting — registered as v2, alias "production"
     gb_params = {"n_estimators": 200, "max_depth": 5, "learning_rate": 0.1,
                  "min_samples_split": 5, "random_state": 42}
     results["GradientBoostingRegressor"] = train_sklearn_model(
         GradientBoostingRegressor(**gb_params), "GradientBoostingRegressor",
         X_train, X_test, y_train, y_test, gb_params,
         register_as=REGISTERED_MODEL_NAME, alias="production")
+    registered_versions["GradientBoostingRegressor"] = "2"
 
-    nn_params = {"epochs": 50, "batch_size": 64, "optimizer": "adam",
+    # PyTorch Neural Net (64->32->1, 30 epochs)
+    nn_params = {"epochs": 30, "batch_size": 64, "optimizer": "adam",
                  "hidden_layers": "64-32", "activation": "relu"}
     results["PyTorchNeuralNet"] = train_pytorch_model(
         X_train_scaled, X_test_scaled, y_train, y_test, nn_params)
 
     print_summary(results)
+    export_summary(results, registered_versions)
 
 
 if __name__ == "__main__":

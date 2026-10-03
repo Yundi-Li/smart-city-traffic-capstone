@@ -1,12 +1,15 @@
 """
 Unsupervised Machine Learning Analysis for Metro Interstate Traffic Volume.
 
-Performs K-Means clustering and Association Rule Mining on traffic data.
+Performs K-Means clustering and Association Rule Mining using the
+Part 2 featured dataset via data_loader.
 """
 
 import logging
 import os
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -14,40 +17,21 @@ import pandas as pd
 from mlxtend.frequent_patterns import apriori, association_rules
 from mlxtend.preprocessing import TransactionEncoder
 from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
 from sklearn.preprocessing import MinMaxScaler
 
+from data_loader import load_featured_data, FIGURES_DIR
+
 logger = logging.getLogger(__name__)
-
-
-def load_data(filepath: str) -> pd.DataFrame:
-    """Load the traffic volume dataset."""
-    logger.info("Loading data from %s", filepath)
-    df = pd.read_csv(filepath)
-    df["date_time"] = pd.to_datetime(df["date_time"])
-    df["hour"] = df["date_time"].dt.hour
-    df["day_of_week"] = df["date_time"].dt.dayofweek
-    logger.info("Loaded %d rows", len(df))
-    return df
 
 
 # ---------------------------------------------------------------------------
 # K-Means Clustering
 # ---------------------------------------------------------------------------
 
-WEATHER_SEVERITY = {
-    "Clear": 0, "Clouds": 1, "Mist": 2, "Haze": 2, "Drizzle": 2,
-    "Rain": 3, "Fog": 3, "Snow": 4, "Thunderstorm": 4, "Squall": 4, "Smoke": 4,
-}
-
-
-def run_kmeans(df: pd.DataFrame, figures_dir: str) -> pd.DataFrame:
-    """Run K-Means clustering on cyclical hour, weather severity, and traffic volume."""
-    from sklearn.metrics import silhouette_score
-
-    cluster_df = df[["hour", "weather_main", "traffic_volume"]].dropna().copy()
-    cluster_df["hour_sin"] = np.sin(2 * np.pi * cluster_df["hour"] / 24)
-    cluster_df["hour_cos"] = np.cos(2 * np.pi * cluster_df["hour"] / 24)
-    cluster_df["weather_severity"] = cluster_df["weather_main"].map(WEATHER_SEVERITY).fillna(2)
+def run_kmeans(df: pd.DataFrame) -> pd.DataFrame:
+    """Run K-Means clustering on hour_sin, hour_cos, weather_severity, traffic_volume (all scaled)."""
+    cluster_df = df[["hour", "hour_sin", "hour_cos", "weather_severity", "traffic_volume"]].dropna().copy()
 
     features = ["hour_sin", "hour_cos", "weather_severity", "traffic_volume"]
     logger.info("Clustering on %d rows with features: %s", len(cluster_df), features)
@@ -66,9 +50,18 @@ def run_kmeans(df: pd.DataFrame, figures_dir: str) -> pd.DataFrame:
         silhouettes.append(sil)
         logger.info("k=%d  inertia=%.2f  silhouette=%.4f", k, km.inertia_, sil)
 
-    best_k = k_range[np.argmax(silhouettes)]
-    logger.info("Best k by silhouette: %d (score=%.4f)", best_k, max(silhouettes))
+    best_k_sil = list(k_range)[np.argmax(silhouettes)]
+    logger.info("Best k by silhouette: %d (score=%.4f)", best_k_sil, max(silhouettes))
 
+    # Use k=4 for richer, more operationally useful clusters even if k=2 has
+    # a higher silhouette score. Two clusters simply split "busy" vs "quiet",
+    # whereas four clusters reveal distinct operational regimes (night lull,
+    # shoulder hours, midday moderate, peak commute).
+    chosen_k = 4
+    logger.info("Using k=%d (richer operational clusters vs k=%d best silhouette)", chosen_k, best_k_sil)
+
+    # Save elbow/silhouette plot
+    os.makedirs(FIGURES_DIR, exist_ok=True)
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
     ax1.plot(list(k_range), inertias, "bo-")
     ax1.set_xlabel("k")
@@ -79,13 +72,12 @@ def run_kmeans(df: pd.DataFrame, figures_dir: str) -> pd.DataFrame:
     ax2.set_ylabel("Silhouette Score")
     ax2.set_title("Silhouette Analysis")
     plt.tight_layout()
-    elbow_path = os.path.join(figures_dir, "elbow_method.png")
+    elbow_path = os.path.join(FIGURES_DIR, "elbow_method.png")
     plt.savefig(elbow_path, dpi=150)
     plt.close()
     logger.info("Saved elbow/silhouette plot to %s", elbow_path)
 
-    # Fit with chosen k=4
-    chosen_k = 4
+    # Fit with chosen k
     km_final = KMeans(n_clusters=chosen_k, random_state=42, n_init=10)
     cluster_df["cluster"] = km_final.fit_predict(scaled)
 
@@ -95,7 +87,7 @@ def run_kmeans(df: pd.DataFrame, figures_dir: str) -> pd.DataFrame:
     rank = {old: new for new, old in enumerate(cluster_means.index)}
     cluster_df["cluster"] = cluster_df["cluster"].map(rank)
 
-    # Cluster descriptions with practical names
+    # Cluster profiles with practical names
     cluster_profiles = cluster_df.groupby("cluster").agg(
         size=("hour", "size"),
         mean_hour=("hour", "mean"),
@@ -129,7 +121,7 @@ def run_kmeans(df: pd.DataFrame, figures_dir: str) -> pd.DataFrame:
         print(f"{c:<10} {name:<30} {int(row['size']):>6} {row['mean_hour']:>9.1f} {row['mean_severity']:>13.2f} {row['mean_volume']:>11.0f}")
         print(f"{'':>10} -> {action}")
 
-    # Scatter (hour vs traffic, coloured by cluster)
+    # Scatter plot
     plt.figure(figsize=(10, 6))
     for c in range(chosen_k):
         mask = cluster_df["cluster"] == c
@@ -143,7 +135,7 @@ def run_kmeans(df: pd.DataFrame, figures_dir: str) -> pd.DataFrame:
     plt.title("K-Means Traffic Condition Clusters (k=4)")
     plt.legend(fontsize=8)
     plt.tight_layout()
-    cluster_path = os.path.join(figures_dir, "kmeans_clusters.png")
+    cluster_path = os.path.join(FIGURES_DIR, "kmeans_clusters.png")
     plt.savefig(cluster_path, dpi=150)
     plt.close()
     logger.info("Saved cluster plot to %s", cluster_path)
@@ -179,29 +171,30 @@ def _categorize_weather(weather_main: str) -> str:
 
 
 def run_association_rules(df: pd.DataFrame) -> pd.DataFrame:
-    """Discretize features, mine frequent itemsets, and extract association rules."""
+    """Discretize features, mine frequent itemsets, and extract association rules.
+
+    Filters rules so consequent contains only congestion_category items.
+    Reports top 5 by lift.
+    """
     arm_df = df.copy()
 
-    # Discretize
     arm_df["time_of_day"] = arm_df["hour"].apply(_categorize_hour)
-    arm_df["day_type"] = arm_df["day_of_week"].apply(
-        lambda d: "weekend" if d >= 5 else "weekday"
+    arm_df["day_type"] = arm_df["is_weekend"].apply(
+        lambda x: "weekend" if x >= 1 else "weekday"
     )
     arm_df["weather"] = arm_df["weather_main"].apply(_categorize_weather)
 
-    quartiles = arm_df["traffic_volume"].quantile([0.25, 0.5, 0.75])
-    q1, q2, q3 = quartiles.iloc[0], quartiles.iloc[1], quartiles.iloc[2]
-
-    def _congestion(vol):
-        if vol < q1:
-            return "Low"
-        if vol < q2:
-            return "Medium"
-        if vol < q3:
-            return "High"
-        return "Severe"
-
-    arm_df["congestion"] = arm_df["traffic_volume"].apply(_congestion)
+    # Use the existing congestion_category from featured data
+    congestion_col = "congestion_category"
+    if congestion_col not in arm_df.columns:
+        # Fallback: compute from quartiles
+        quartiles = arm_df["traffic_volume"].quantile([0.25, 0.5, 0.75])
+        q1, q2, q3 = quartiles.iloc[0], quartiles.iloc[1], quartiles.iloc[2]
+        arm_df[congestion_col] = pd.cut(
+            arm_df["traffic_volume"],
+            bins=[-np.inf, q1, q2, q3, np.inf],
+            labels=["Low", "Medium", "High", "Severe"],
+        )
 
     # Build transactions
     transactions = []
@@ -210,23 +203,30 @@ def run_association_rules(df: pd.DataFrame) -> pd.DataFrame:
             f"time={row['time_of_day']}",
             f"day={row['day_type']}",
             f"weather={row['weather']}",
-            f"congestion={row['congestion']}",
+            f"congestion={row[congestion_col]}",
         ])
 
     te = TransactionEncoder()
     te_array = te.fit_transform(transactions)
     te_df = pd.DataFrame(te_array, columns=te.columns_)
 
-    logger.info("Mining frequent itemsets …")
+    logger.info("Mining frequent itemsets ...")
     freq = apriori(te_df, min_support=0.01, use_colnames=True)
     logger.info("Found %d frequent itemsets", len(freq))
 
     rules = association_rules(freq, metric="lift", min_threshold=1.0)
     rules = rules.sort_values("lift", ascending=False)
 
-    top10 = rules.head(10)
-    print("\n=== Top 10 Association Rules by Lift ===")
-    for i, (_, r) in enumerate(top10.iterrows(), 1):
+    # Filter: consequent must contain only congestion_category items
+    congestion_items = {c for c in te_df.columns if c.startswith("congestion=")}
+    filtered = rules[rules["consequents"].apply(
+        lambda cs: len(cs) > 0 and cs.issubset(congestion_items)
+    )]
+    filtered = filtered.sort_values("lift", ascending=False)
+
+    top5 = filtered.head(5)
+    print("\n=== Top 5 Association Rules by Lift (consequent = congestion) ===")
+    for i, (_, r) in enumerate(top5.iterrows(), 1):
         ant = ", ".join(sorted(r["antecedents"]))
         con = ", ".join(sorted(r["consequents"]))
         print(
@@ -234,7 +234,7 @@ def run_association_rules(df: pd.DataFrame) -> pd.DataFrame:
             f"(support={r['support']:.4f}, confidence={r['confidence']:.4f}, lift={r['lift']:.4f})"
         )
 
-    return rules
+    return filtered
 
 
 # ---------------------------------------------------------------------------
@@ -247,18 +247,15 @@ def main() -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
 
-    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    data_path = os.path.join(repo_root, "capstone_part2", "cleaned_traffic.csv")
-    figures_dir = os.path.join(repo_root, "capstone_part3", "figures")
-    os.makedirs(figures_dir, exist_ok=True)
+    os.makedirs(FIGURES_DIR, exist_ok=True)
 
     try:
-        df = load_data(data_path)
-        run_kmeans(df, figures_dir)
+        df = load_featured_data()
+        run_kmeans(df)
         run_association_rules(df)
         logger.info("Unsupervised ML analysis complete.")
     except FileNotFoundError:
-        logger.error("Dataset not found at %s", data_path)
+        logger.error("Featured dataset not found. Run Part 2 pipeline first.")
         sys.exit(1)
     except Exception:
         logger.exception("Unexpected error during analysis")
