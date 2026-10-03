@@ -126,6 +126,35 @@ All Python scripts use the `logging` module for internal status reporting. `prin
 
 Metro Interstate Traffic Volume dataset from Kaggle. ~48,204 raw hourly records of westbound I-94 traffic (2012–2018) with weather and holiday information. After deduplication and cleaning: 40,575 unique hourly records.
 
+## Mapping to Suggested Structure
+
+Folder names follow the deliverable wording in the capstone instructions (`capstone_part1/`, `capstone_part2/`, `capstone_part3/`) rather than the suggested structure names. Power BI was not completed; the HTML dashboard is supplementary.
+
+| Suggested Item | Location in This Repo |
+|---|---|
+| part1_data_analytics/sql | capstone_part1/sql_analysis.py, queries.sql, traffic.db |
+| part1_data_analytics/statistics | capstone_part1/statistics_probability.py |
+| part1_data_analytics/power_bi | Not completed (Power BI Desktop is Windows-only); supplementary HTML dashboard: capstone_part1/dashboard.py, traffic_dashboard.html |
+| part1_data_analytics/report | capstone_part1/insights_report.md |
+| part2_python/pipeline | capstone_part2/pipeline.py |
+| part2_python/feature_engineering | capstone_part2/feature_engineering.py |
+| part2_python/visualizations | capstone_part2/visualizations.py, figures/ |
+| part2_python/cli_app | capstone_part2/app.py |
+| part2_python/logs | capstone_part2/pipeline.log, pipeline_debug_sample.log, logs/ |
+| part2_python/report | capstone_part2/report.md |
+| part2_python/README | capstone_part2/README.md |
+| part3_machine_learning/supervised | capstone_part3/supervised_ml.py |
+| part3_machine_learning/unsupervised | capstone_part3/unsupervised_ml.py |
+| part3_machine_learning/deep_learning | capstone_part3/deep_learning.py |
+| part3_machine_learning/mlflow | capstone_part3/advanced_ai.py, mlflow_logs/ |
+| part3_machine_learning/recommendation | capstone_part3/recommendation.py |
+| part3_machine_learning/deployment | capstone_part3/deployment/app.py, test_api.py |
+| part3_machine_learning/monitoring | capstone_part3/monitoring.py |
+| part3_machine_learning/responsible_ai | capstone_part3/responsible_ai.md |
+| part3_machine_learning/report | capstone_part3/capstone_report.md |
+| part3_machine_learning/README | capstone_part3/README.md |
+| final_capstone_report | final_capstone_report.md (PDF if generated) |
+
 ## Proxy Accident-Risk Label
 
 No real accident dataset was provided. A proxy label was created: `high_risk = (congestion_category in [High, Severe]) AND (severe_weather OR is_low_visibility)`. This demonstrates the ML classification workflow and should not be interpreted as actual accident prediction. See `capstone_part3/README.md` for the exact definition.
