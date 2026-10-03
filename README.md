@@ -1,6 +1,6 @@
 # Smart City Traffic Intelligence: From Data Analytics to AI-Powered Mobility
 
-An end-to-end traffic intelligence solution using the Metro Interstate Traffic Volume dataset (~48,000 hourly records of westbound I-94 near Minneapolis-St Paul).
+An end-to-end traffic intelligence solution using the Metro Interstate Traffic Volume dataset (~48,000 hourly records of westbound I-94 near Minneapolis-St Paul, 2012–2018).
 
 ## Project Structure
 
@@ -8,34 +8,50 @@ An end-to-end traffic intelligence solution using the Metro Interstate Traffic V
 smart-city-traffic-capstone/
 ├── data/
 │   └── Metro_Interstate_Traffic_Volume.csv
-├── capstone_part1/          # Data Analytics
-│   ├── sql_analysis.py      # SQLite analysis (Tasks 1.1-1.3)
-│   ├── queries.sql          # All SQL queries
-│   ├── statistics_probability.py  # Stats & probability (Tasks 2-3)
-│   ├── insights_report.md   # Part 1 findings report
+├── capstone_part1/                  # Part 1 — Data Analytics
+│   ├── sql_analysis.py              # SQLite analysis (Tasks 1.1-1.3)
+│   ├── queries.sql                  # All SQL queries
+│   ├── traffic.db                   # SQLite database
+│   ├── statistics_probability.py    # Descriptive stats & probability (Tasks 2-3)
+│   ├── dashboard.py                 # Interactive Plotly dashboard (Task 4)
+│   ├── traffic_dashboard.html       # Generated dashboard
+│   ├── insights_report.md           # Part 1 findings report
 │   └── powerbi_instructions.md
-├── capstone_part2/          # Python Pipeline
-│   ├── pipeline.py          # Data cleaning pipeline (main entry point)
-│   ├── feature_engineering.py
-│   ├── visualizations.py
-│   ├── app.py               # CLI mini-application
-│   ├── pipeline.log         # Sample log output
-│   ├── report.md            # Part 2 methodology report
+├── capstone_part2/                  # Part 2 — Python Pipeline
+│   ├── pipeline.py                  # Data cleaning pipeline
+│   ├── feature_engineering.py       # Feature creation
+│   ├── visualizations.py            # Matplotlib chart generation
+│   ├── app.py                       # CLI mini-application
+│   ├── logging_config.py            # Centralised logging setup
+│   ├── cleaned_traffic.csv          # Pipeline output (40,575 rows)
+│   ├── featured_traffic.csv         # Featured output (40,575 × 33)
+│   ├── pipeline.log                 # Sample log (normal run)
+│   ├── pipeline_debug_sample.log    # Sample log (debug run)
+│   ├── logs/pipeline.log            # Runtime log
+│   ├── figures/                     # Part 2 figures
+│   ├── report.md                    # Methodology report
+│   ├── README.md                    # Part 2 documentation
 │   └── requirements.txt
-├── capstone_part3/          # Machine Learning & AI
-│   ├── supervised_ml.py     # Classification & regression
-│   ├── unsupervised_ml.py   # K-means & association rules
-│   ├── deep_learning.py     # Neural network + SHAP
-│   ├── advanced_ai.py       # MLflow experiment tracking
-│   ├── recommendation.py    # Travel timing recommender
-│   ├── monitoring.py        # Drift detection & alerting
+├── capstone_part3/                  # Part 3 — ML & AI
+│   ├── supervised_ml.py             # Classification & regression
+│   ├── unsupervised_ml.py           # K-means & association rules
+│   ├── deep_learning.py             # PyTorch neural net + SHAP
+│   ├── advanced_ai.py               # MLflow experiment tracking
+│   ├── recommendation.py            # Travel timing recommender
+│   ├── monitoring.py                # Time-based drift detection
+│   ├── data_loader.py               # Shared data-loading utility
 │   ├── deployment/
-│   │   ├── app.py           # FastAPI deployment
-│   │   └── test_api.py      # API test script
-│   ├── responsible_ai.md    # Bias, fairness & governance
-│   ├── capstone_report.md   # Final Part 3 report
+│   │   ├── app.py                   # FastAPI prediction API
+│   │   └── test_api.py              # API test script
+│   ├── mlflow_logs/mlflow.db        # MLflow tracking database
+│   ├── reports/
+│   │   ├── model_versions.md        # Model registry
+│   │   └── monitoring_report.txt    # Drift monitoring results
+│   ├── responsible_ai.md            # Bias, fairness & governance
+│   ├── capstone_report.md           # Final Part 3 report
+│   ├── README.md                    # Part 3 documentation
 │   └── requirements.txt
-└── figures/                 # All generated visualisations
+└── figures/                         # All generated visualisations
 ```
 
 ## How to Run
@@ -52,11 +68,10 @@ pip install -r capstone_part3/requirements.txt
 ```bash
 python capstone_part1/sql_analysis.py
 python capstone_part1/statistics_probability.py
+python capstone_part1/dashboard.py
 ```
 
-### Part 2: Python Pipeline
-
-Run the pipeline end-to-end:
+### Part 2: Python Pipeline (run in order)
 
 ```bash
 python capstone_part2/pipeline.py
@@ -70,7 +85,7 @@ Launch the CLI application:
 python capstone_part2/app.py
 ```
 
-Available CLI commands: `traffic <date>`, `peak <weekday|weekend>`, `compare <month>`, `recommend <day_type> <weather>`, `help`, `quit`.
+All scripts accept `--debug` for DEBUG-level logging.
 
 ### Part 3: Machine Learning & AI
 
@@ -92,20 +107,17 @@ python capstone_part3/deployment/test_api.py
 
 ## Logging
 
-All Python scripts use the `logging` module (not `print()`) for internal status reporting.
+All Python scripts use the `logging` module for internal status reporting. `print()` is used only for user-facing result tables.
 
-- **Log file:** `capstone_part2/pipeline.log` (generated by the pipeline)
-- **Log format:** `%(asctime)s - %(levelname)s - %(name)s - %(message)s`
-- **Levels used:**
-  - `DEBUG` — Intermediate calculations (quartile thresholds, internal values). Only visible when running in debug mode.
-  - `INFO` — Normal milestones: data loaded, steps completed, files saved.
-  - `WARNING` — Rows dropped, values imputed, outliers handled.
-  - `ERROR` — Pipeline failures with traceback details.
+- **Log file:** `capstone_part2/logs/pipeline.log`
+- **Log format:** `timestamp | level | module | message`
+- **Levels:** DEBUG (intermediate values, `--debug` only), INFO (milestones), WARNING (rows dropped/imputed), ERROR (failures)
+- **Configuration:** Centralised in `capstone_part2/logging_config.py`
 
 ## Dataset
 
-Metro Interstate Traffic Volume dataset from Kaggle. Contains hourly traffic volume, weather conditions, temperature, and US federal holiday information for westbound I-94 (2012-2018).
+Metro Interstate Traffic Volume dataset from Kaggle. ~48,204 raw hourly records of westbound I-94 traffic (2012–2018) with weather and holiday information. After deduplication and cleaning: 40,575 unique hourly records.
 
 ## Proxy Accident-Risk Label
 
-No accident dataset was provided. A proxy label was created for the classification task: a record is labelled high-risk when high/severe congestion occurs together with severe or low-visibility weather conditions. This is documented in the code and should not be interpreted as a prediction of actual accidents.
+No real accident dataset was provided. A proxy label was created: `high_risk = (congestion in [High, Severe]) AND (severe_weather OR is_low_visibility)`. This demonstrates the ML classification workflow and should not be interpreted as actual accident prediction. See `capstone_part3/README.md` for the exact definition.
