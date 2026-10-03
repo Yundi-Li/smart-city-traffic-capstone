@@ -147,3 +147,15 @@ async def predict(request: PredictRequest):
     except Exception as e:
         logger.exception("Prediction failed")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/status")
+async def monitoring_status():
+    """Return the latest monitoring status (PASS/ALERT per check)."""
+    import json
+    status_path = Path(__file__).resolve().parents[1] / "reports" / "monitoring_status.json"
+    try:
+        with open(status_path) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {"overall_status": "UNKNOWN", "message": "Run monitoring.py first"}

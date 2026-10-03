@@ -17,4 +17,7 @@ Production period:  2018 (6533 records)
   rain_1h               KS=0.0129  p=0.3229  [PASS]
   hour                  KS=0.0031  p=1.0000  [PASS]
 
+--- OVERALL SYSTEM STATUS ---
+  ALERT / Requires investigation
+
 ============================================================

@@ -120,7 +120,31 @@ def test_predict():
     print()
 
 
+def test_status():
+    """Test the /status endpoint (monitoring results)."""
+    print("=" * 60)
+    print("Testing /status endpoint")
+    print("=" * 60)
+    try:
+        resp = requests.get(f"{BASE_URL}/status", timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        print(f"  Overall: {data.get('overall_status', 'UNKNOWN')} — {data.get('overall_message', '')}")
+        if "prediction_error_drift" in data:
+            ped = data["prediction_error_drift"]
+            print(f"  Error drift: {ped['status']} (holdout MAE={ped['holdout_mae']}, prod MAE={ped['production_mae']})")
+        for fd in data.get("feature_drift", []):
+            print(f"  {fd['feature']:20s} {fd['status']} (KS={fd['ks_statistic']}, p={fd['p_value']})")
+        print(f"  HTTP {resp.status_code} OK")
+    except requests.exceptions.ConnectionError:
+        print("  ERROR: Could not connect. Is the server running on port 8000?")
+    except requests.exceptions.RequestException as e:
+        print(f"  ERROR: {e}")
+    print()
+
+
 if __name__ == "__main__":
     test_health()
+    test_status()
     test_predict()
     print("All tests completed.")

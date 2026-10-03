@@ -1,0 +1,36 @@
+{
+  "overall_status": "ALERT",
+  "overall_message": "ALERT / Requires investigation",
+  "prediction_error_drift": {
+    "status": "PASS",
+    "holdout_mae": 303.6,
+    "production_mae": 283.04,
+    "pct_change": -6.77
+  },
+  "feature_drift": [
+    {
+      "feature": "temp",
+      "status": "ALERT",
+      "ks_statistic": 0.1303,
+      "p_value": 0.0
+    },
+    {
+      "feature": "clouds_all",
+      "status": "ALERT",
+      "ks_statistic": 0.0858,
+      "p_value": 0.0
+    },
+    {
+      "feature": "rain_1h",
+      "status": "PASS",
+      "ks_statistic": 0.0129,
+      "p_value": 0.3229
+    },
+    {
+      "feature": "hour",
+      "status": "PASS",
+      "ks_statistic": 0.0031,
+      "p_value": 1.0
+    }
+  ]
+}

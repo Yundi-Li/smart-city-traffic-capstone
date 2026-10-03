@@ -287,14 +287,52 @@ def run_monitoring() -> None:
             f"  {fd['feature']:20s}  KS={fd['ks_statistic']:.4f}  "
             f"p={fd['p_value']:.4f}  [{fd['status']}]"
         )
-    lines.extend(["", "=" * 60])
+    # Overall system status
+    any_alert = drift_status == "ALERT" or any(fd["status"] == "ALERT" for fd in feature_drift)
+    overall = "ALERT / Requires investigation" if any_alert else "PASS / Normal"
+
+    lines.extend([
+        "",
+        "--- OVERALL SYSTEM STATUS ---",
+        f"  {overall}",
+        "",
+        "=" * 60,
+    ])
     report = "\n".join(lines)
     print(report)
+
+    if any_alert:
+        logger.warning("Overall system status: %s", overall)
+    else:
+        logger.info("Overall system status: %s", overall)
 
     os.makedirs(os.path.dirname(report_path), exist_ok=True)
     with open(report_path, "w") as f:
         f.write(report)
     logger.info("Monitoring report saved to %s", report_path)
+
+    # Save status as JSON for the API endpoint
+    import json
+    status_data = {
+        "overall_status": "ALERT" if any_alert else "PASS",
+        "overall_message": overall,
+        "prediction_error_drift": {
+            "status": drift_status,
+            "holdout_mae": round(holdout_mae, 2),
+            "production_mae": round(prod_mae, 2),
+            "pct_change": round(pct_change * 100, 2),
+        },
+        "feature_drift": [
+            {"feature": fd["feature"], "status": fd["status"],
+             "ks_statistic": round(fd["ks_statistic"], 4),
+             "p_value": round(fd["p_value"], 4)}
+            for fd in feature_drift
+        ],
+    }
+    status_path = os.path.join(os.path.dirname(report_path), "monitoring_status.json")
+    with open(status_path, "w") as f:
+        json.dump(status_data, f, indent=2)
+    logger.info("Monitoring status JSON saved to %s", status_path)
 
     save_drift_visualization(df_train, df_prod, drift_features, figure_path)
 
