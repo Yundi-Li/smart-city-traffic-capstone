@@ -40,7 +40,14 @@ def add_time_features(df: pd.DataFrame) -> pd.DataFrame:
     df["dow_sin"] = np.sin(2 * np.pi * df["day_of_week"] / 7)
     df["dow_cos"] = np.cos(2 * np.pi * df["day_of_week"] / 7)
 
-    logger.info("Added time features: hour, day_of_week, is_weekend, cyclical encodings")
+    # Holiday flag: the holiday column only labels the midnight row, so flag
+    # ALL hours on any date that has a holiday label.
+    holiday_dates = df.loc[df["holiday"] != "No Holiday", "date_time"].dt.date.unique()
+    df["is_holiday"] = df["date_time"].dt.date.isin(holiday_dates).astype(int)
+    n_holiday = df["is_holiday"].sum()
+    logger.info("Added is_holiday: %d rows flagged across %d holiday dates", n_holiday, len(holiday_dates))
+
+    logger.info("Added time features: hour, day_of_week, is_weekend, cyclical encodings, is_holiday")
     return df
 
 
