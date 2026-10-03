@@ -6,7 +6,16 @@
 
 The dataset contains 48,204 raw rows spanning October 2012 to September 2018, but coverage is uneven. After deduplicating timestamps (the dataset contains 5,445 duplicate timestamp entries with different weather readings), the unique hourly records per year are: 2012: 2,103 (partial, starts Oct 2); 2013: 7,294; 2014: 4,501; 2015: 3,593; 2016: 7,838; 2017: 8,713. A major sensor gap runs from 2014-08-08 01:00 to 2015-06-11 20:00 (~10 months), which makes raw yearly totals misleading.
 
-When normalised to average volume per hour, traffic demand is stable across years: 3,227 (2012), 3,310 (2013), 3,270 (2014), 3,258 (2015), 3,194 (2016), 3,377 (2017). The largest year-on-year change is +5.73% from 2016 to 2017. This means historical hourly averages from any complete year are a valid planning baseline, as long as the 2014–15 gap is excluded.
+| Year | Hours | Total Volume | YoY Change | YoY % | Avg/Hour |
+|------|-------|-------------|------------|-------|----------|
+| 2012 | 2,103 | 6,785,754 | — | — | 3,227 |
+| 2013 | 7,294 | 24,139,878 | +17,354,124 | +255.8% | 3,310 |
+| 2014 | 4,501 | 14,718,915 | −9,420,963 | −39.0% | 3,270 |
+| 2015 | 3,593 | 11,706,145 | −3,012,770 | −20.5% | 3,258 |
+| 2016 | 7,838 | 25,032,183 | +13,326,038 | +113.8% | 3,194 |
+| 2017 | 8,713 | 29,420,221 | +4,388,038 | +17.5% | 3,377 |
+
+Total volumes swing wildly because of uneven coverage (2012 partial, 2014–15 sensor gap). The average-per-hour column removes this distortion: demand is stable at 3,194–3,377 vehicles/hour, with the largest year-on-year change only +5.73% (2016→2017). Historical hourly averages from any complete year are a valid planning baseline.
 
 ### Holiday Temperature Patterns (Task 1.3)
 
@@ -51,7 +60,7 @@ Defining congestion as traffic volume > 5,500 vehicles/hour:
 
 **Independence test:** P(Congestion) × P(Clear) = 0.0409, while P(Congestion ∩ Clear) = 0.0366. The difference is 0.0043 — small but not zero. Congestion and clear weather are approximately independent, meaning weather type alone does not strongly predict whether congestion occurs.
 
-**Odds ratio (clear vs cloudy):** In clear weather, 1,763 out of 13,391 hours are congested (odds = 0.152). In cloudy weather, 2,592 out of 15,164 hours are congested (odds = 0.206). The odds ratio is 0.74, meaning congestion is 1.36× more likely in cloudy weather than in clear weather. While statistically detectable, this is a modest effect — time of day and day of week are far stronger congestion drivers.
+**Odds ratio (clear vs cloudy):** The congestion probability in clear weather is 1,763/13,391 = 13.2%. In cloudy weather it is 2,592/15,164 = 17.1%. The odds of congestion are 0.152 (clear) vs 0.206 (cloudy), giving an odds ratio of 0.74 (clear vs cloudy). Equivalently, the odds of congestion are 1.36× higher in cloudy weather than in clear. While statistically detectable, this is a modest effect — time of day and day of week are far stronger congestion drivers.
 
 ## 5. Dashboard Analysis (Task 4)
 
